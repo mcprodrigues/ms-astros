@@ -1,0 +1,110 @@
+import logging
+import pandas as pd
+from typing import Dict, Any
+from haystack import Document
+
+from app.settings import settings
+from app.providers.weaviate_provider import WeaviateProvider
+from app.schemas.movie import MovieResponse
+from app.schemas.search import SearchRequest, SearchResponse
+
+logger = logging.getLogger(__name__)
+
+class SearchService:
+    """
+    Search service orchestrating business logic for semantic search.
+    Handles data indexing and query execution.
+    """
+
+    def __init__(self):
+        self.weaviate_provider = WeaviateProvider()
+
+    async def index_movies_from_csv(self) -> Dict[str, Any]:
+        try:
+            logger.info("Starting movie indexing from CSV...")
+
+            # Carregar CSV
+            df = pd.read_csv("data/movies.csv")
+
+            documents = []
+
+            for _, row in df.iterrows():
+                titulo_original = str(row.get("Título Original", "")).strip()
+                direcao = str(
+                    row.get("Direção / Um filme de / Uma obra de", "")
+                ).strip()
+                sinopse = str(row.get("Sinopse", "")).strip()
+                descricao = str(row.get("Descrição Completa", "")).strip()
+                palavras = str(row.get("Palavras-Chave", "")).strip()
+
+                content_parts = [
+                    titulo_original,
+                    sinopse,
+                    descricao,
+                    palavras,
+                ]
+                content_text = ". ".join([c for c in content_parts if c])
+
+                doc = Document(
+                    content=content_text,
+                    meta={
+                        "titulo": titulo_original,
+                        "sinopse": sinopse,
+                        "descricao": descricao,
+                        "palavras_chave": palavras,
+                        "diretor": direcao,
+                    },
+                )
+
+                documents.append(doc)
+
+            doc_count = self.weaviate_provider.write_documents(documents)
+
+            return {
+                "status": "success",
+                "indexed_documents": doc_count,
+            }
+
+        except Exception as e:
+            logger.error(f"Indexation failed: {e}")
+            raise
+
+    async def semantic_search(self, search_request: SearchRequest) -> SearchResponse:
+        try:
+            logger.info(f"Executing semantic search for query: {search_request.query}")
+
+            retriever = self.weaviate_provider.get_retriever()
+
+            results = retriever.run(
+                query=search_request.query,
+                top_k=search_request.top_k,
+            )
+
+            documents = results.get("documents", [])
+            movie_results = []
+
+            for doc in documents:
+                meta = doc.meta
+                score = getattr(doc, "score", 1.0)
+
+                if score >= search_request.min_score:
+                    movie_results.append(
+                        MovieResponse(
+                            titulo=meta.get("titulo", ""),
+                            sinopse=meta.get("sinopse", ""),
+                            descricao=meta.get("descricao", ""),
+                            palavras_chave=meta.get("palavras_chave", ""),
+                            diretor=meta.get("diretor", ""),
+                            score=round(score, 4),
+                        )
+                    )
+
+            return SearchResponse(
+                query=search_request.query,
+                total_results=len(movie_results),
+                results=movie_results,
+            )
+
+        except Exception as e:
+            logger.error(f"Error performing semantic search: {e}")
+            raise
