@@ -2,8 +2,8 @@ import logging
 from typing import List
 from haystack import Document, Pipeline
 
-from app.providers.components.retriever import RetrieverComponent
-from app.providers.components.store import DocumentStoreProvider
+from app.providers.pipelines.components.retriever import RetrieverComponent
+from app.providers.pipelines.components.store import DocumentStoreProvider
 
 
 logger = logging.getLogger(__name__)

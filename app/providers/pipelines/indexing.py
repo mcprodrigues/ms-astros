@@ -3,7 +3,7 @@ from typing import List
 from haystack import Document, Pipeline
 from haystack.components.writers import DocumentWriter
 
-from app.providers.components.store import DocumentStoreProvider
+from app.providers.pipelines.components.store import DocumentStoreProvider
 
 logger = logging.getLogger(__name__)
 
