@@ -120,3 +120,13 @@ class SearchService:
         except Exception as e:
             logger.error(f"Error performing semantic search: {e}")
             raise
+        
+    @staticmethod
+    def get_service() -> "SearchService":
+        """
+        Factory method to create SearchService instance.
+
+        Returns:
+            SearchService instance
+        """
+        return SearchService()

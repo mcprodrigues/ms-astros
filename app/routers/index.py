@@ -1,13 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 import logging
 
 from app.services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
-search_service = SearchService()
 
 
 @router.post(
@@ -16,7 +14,9 @@ search_service = SearchService()
     summary="Index Movies",
     description="Manually trigger movie indexation from CSV",
 )
-async def index_movies() -> Dict[str, Any]:
+async def index_movies(
+  search_service: SearchService = Depends(SearchService.get_service)
+  ) -> Dict[str, Any]:
     """
     Manual indexation endpoint (optional, as indexation happens on startup).
 

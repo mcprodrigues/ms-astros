@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 import logging
 
@@ -6,10 +6,7 @@ from app.schemas.search import SearchRequest, SearchResponse
 from app.services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
-search_service = SearchService()
-
 
 @router.post(
     "/search/semantic",
@@ -18,7 +15,10 @@ search_service = SearchService()
     summary="Semantic Search",
     description="Perform semantic search on movie database using natural language queries",
 )
-async def semantic_search(request: SearchRequest) -> SearchResponse:
+async def semantic_search(
+    request: SearchRequest, 
+    search_service: SearchService = Depends(SearchService.get_service)
+    ) -> SearchResponse:
     """
     Endpoint for semantic search on movies.
 
@@ -48,7 +48,9 @@ async def semantic_search(request: SearchRequest) -> SearchResponse:
     summary="Health Check",
     description="Check if the search service is healthy",
 )
-async def health_check() -> Dict[str, Any]:
+async def health_check(
+    search_service: SearchService = Depends(SearchService.get_service)
+    ) -> Dict[str, Any]:
     """
     Health check endpoint.
 
