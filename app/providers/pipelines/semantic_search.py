@@ -19,22 +19,6 @@ class SearchPipeline:
         self.document_store_provider = DocumentStoreProvider()
         self.pipeline = self._build_pipeline()
 
-    def _build_pipeline(self) -> Pipeline:
-        """
-        Build the search pipeline with BM25 retriever component.
-
-        Returns:
-            Pipeline: Configured search pipeline
-        """
-        pipeline = Pipeline()
-
-        document_store = self.document_store_provider.get_document_store()
-        retriever = RetrieverComponent.create_retriever(document_store)
-
-        pipeline.add_component("retriever", retriever)
-
-        logger.info("Search pipeline built successfully")
-        return pipeline
 
     def search(self, query: str, top_k: int = 10) -> List[Document]:
         """
@@ -57,3 +41,20 @@ class SearchPipeline:
         except Exception as e:
             logger.error(f"Error executing search: {e}")
             raise
+
+    def _build_pipeline(self) -> Pipeline:
+        """
+        Build the search pipeline with BM25 retriever component.
+
+        Returns:
+            Pipeline: Configured search pipeline
+        """
+        pipeline = Pipeline()
+
+        document_store = self.document_store_provider.get_document_store()
+        retriever = RetrieverComponent.create_retriever(document_store)
+
+        pipeline.add_component("retriever", retriever)
+
+        logger.info("Search pipeline built successfully")
+        return pipeline

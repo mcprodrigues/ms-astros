@@ -18,22 +18,6 @@ class IndexingPipeline:
         self.document_store_provider = DocumentStoreProvider()
         self.pipeline = self._build_pipeline()
 
-    def _build_pipeline(self) -> Pipeline:
-        """
-        Build the indexing pipeline with DocumentWriter component.
-
-        Returns:
-            Pipeline: Configured indexing pipeline
-        """
-        pipeline = Pipeline()
-
-        document_store = self.document_store_provider.get_document_store()
-        writer = DocumentWriter(document_store=document_store)
-
-        pipeline.add_component("writer", writer)
-
-        logger.info("Indexing pipeline built successfully")
-        return pipeline
 
     def index_documents(self, documents: List[Document]) -> int:
         """
@@ -67,3 +51,20 @@ class IndexingPipeline:
         except Exception as e:
             logger.error(f"Error counting documents: {e}")
             return 0
+        
+    def _build_pipeline(self) -> Pipeline:
+        """
+        Build the indexing pipeline with DocumentWriter component.
+
+        Returns:
+            Pipeline: Configured indexing pipeline
+        """
+        pipeline = Pipeline()
+
+        document_store = self.document_store_provider.get_document_store()
+        writer = DocumentWriter(document_store=document_store)
+
+        pipeline.add_component("writer", writer)
+
+        logger.info("Indexing pipeline built successfully")
+        return pipeline
