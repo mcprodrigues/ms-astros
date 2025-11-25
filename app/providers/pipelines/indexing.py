@@ -18,7 +18,6 @@ class IndexingPipeline:
         self.document_store_provider = DocumentStoreProvider()
         self.pipeline = self._build_pipeline()
 
-
     def index_documents(self, documents: List[Document]) -> int:
         """
         Index documents using the pipeline.
@@ -51,7 +50,7 @@ class IndexingPipeline:
         except Exception as e:
             logger.error(f"Error counting documents: {e}")
             return 0
-        
+
     def _build_pipeline(self) -> Pipeline:
         """
         Build the indexing pipeline with DocumentWriter component.

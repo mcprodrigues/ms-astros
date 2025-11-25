@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from app.routers.search import router as search_router
+from app.routers.index import router as index_router
 from app.services.search_service import SearchService
 
 
@@ -63,6 +64,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(search_router, prefix="/api/v1", tags=["search"])
+app.include_router(index_router, prefix="/api/v1", tags=["index"])
 
 
 @app.get("/")

@@ -19,7 +19,6 @@ class SearchPipeline:
         self.document_store_provider = DocumentStoreProvider()
         self.pipeline = self._build_pipeline()
 
-
     def search(self, query: str, top_k: int = 10) -> List[Document]:
         """
         Execute semantic search using the pipeline.
