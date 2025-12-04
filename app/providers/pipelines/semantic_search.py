@@ -1,3 +1,4 @@
+from functools import lru_cache
 import logging
 from typing import List
 from haystack import Document, Pipeline
@@ -57,3 +58,14 @@ class SearchPipeline:
 
         logger.info("Search pipeline built successfully")
         return pipeline
+
+
+@lru_cache()
+def get_search_pipeline() -> SearchPipeline:
+    """
+    Get a cached instance of the SearchPipeline.
+
+    Returns:
+        SearchPipeline: Singleton search pipeline instance
+    """
+    return SearchPipeline()
