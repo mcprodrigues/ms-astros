@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from typing import Annotated, Dict, Any
 import logging
 
 from app.schemas.search import SearchRequest, SearchResponse
-from app.services.search_service import SearchService
+from app.services.interfaces import ISearchService
+from app.services.search import SearchService, get_search_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
 
 @router.post(
     "/search/semantic",
@@ -16,9 +18,9 @@ router = APIRouter()
     description="Perform semantic search on movie database using natural language queries",
 )
 async def semantic_search(
-    request: SearchRequest, 
-    search_service: SearchService = Depends(SearchService.get_service)
-    ) -> SearchResponse:
+    request: SearchRequest,
+    service: ISearchService = Depends(get_search_service),
+) -> SearchResponse:
     """
     Endpoint for semantic search on movies.
 
@@ -32,7 +34,7 @@ async def semantic_search(
         HTTPException: If search fails
     """
     try:
-        result = await search_service.semantic_search(request)
+        result = await service.semantic_search(request)
         return result
     except Exception as e:
         logger.error(f"Search endpoint error: {e}")
@@ -49,8 +51,8 @@ async def semantic_search(
     description="Check if the search service is healthy",
 )
 async def health_check(
-    search_service: SearchService = Depends(SearchService.get_service)
-    ) -> Dict[str, Any]:
+    service: ISearchService = Depends(get_search_service),
+) -> Dict[str, Any]:
     """
     Health check endpoint.
 
@@ -58,7 +60,7 @@ async def health_check(
         Dict with service status and document count
     """
     try:
-        doc_count = search_service.weaviate_provider.count_documents()
+        doc_count = service.weaviate_provider.count_documents()
         return {
             "status": "healthy",
             "service": "semantic_search",
