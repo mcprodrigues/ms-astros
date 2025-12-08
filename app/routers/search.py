@@ -3,7 +3,8 @@ from typing import Annotated, Dict, Any
 import logging
 
 from app.schemas.search import SearchRequest, SearchResponse
-from app.services.interfaces import ISearchService
+from app.services.indexing import get_indexing_service
+from app.services.interfaces import IIndexingService, ISearchService
 from app.services.search import SearchService, get_search_service
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ async def semantic_search(
     description="Check if the search service is healthy",
 )
 async def health_check(
-    service: ISearchService = Depends(get_search_service),
+    service: IIndexingService = Depends(get_indexing_service),
 ) -> Dict[str, Any]:
     """
     Health check endpoint.
@@ -60,7 +61,7 @@ async def health_check(
         Dict with service status and document count
     """
     try:
-        doc_count = service.weaviate_provider.count_documents()
+        doc_count = await service.get_document_count()
         return {
             "status": "healthy",
             "service": "semantic_search",
