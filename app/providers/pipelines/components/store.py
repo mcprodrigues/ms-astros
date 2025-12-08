@@ -37,7 +37,7 @@ class DocumentStoreProvider:
                 url=settings.WEAVIATE_URL,
                 collection_settings={
                     "class": settings.WEAVIATE_INDEX_NAME,
-                    "vectorizer": "text2vec-transformers",
+                    "vectorizer": "none",
                     "properties": [
                         {
                             "name": "content",
