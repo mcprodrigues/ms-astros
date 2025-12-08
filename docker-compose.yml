@@ -44,7 +44,7 @@ services:
       - weaviate
       - t2v-transformers
     volumes:
-      - ./movies.csv:/app/movies.csv
+      - ./data/embeddings:/app/data/embeddings
     networks:
       - astros-network
 
