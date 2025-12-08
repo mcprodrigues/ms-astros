@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.scripts.load_embeddings import EmbeddingLoader
+from app.api import api_router
 from app.services.search import SearchService
 
 logging.basicConfig(
@@ -94,6 +95,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api_router)
 
 @app.get("/", tags=["root"])
 async def root():
