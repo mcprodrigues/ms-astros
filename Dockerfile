@@ -2,18 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    gcc g++ && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# COPIAR SOMENTE A PASTA "app" DO PROJETO
-COPY app ./app
+# Copia o conteúdo da pasta app/ diretamente para /app
+COPY app .
 
-# OPICIONAL: copiar CSV
 COPY data ./data
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "\
+    echo 'Loading precomputed embeddings...' && \
+    python scripts/load_embeddings.py && \
+    echo 'Embeddings loaded successfully' && \
+    echo 'Starting API server...' && \
+    uvicorn main:app --host 0.0.0.0 --port 8000 \
+"]
