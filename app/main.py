@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.scripts.load_embeddings import EmbeddingLoader
 from app.api import api_router
+from app.services.indexing import IndexingService
 from app.services.search import SearchService
 
 logging.basicConfig(
@@ -24,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 async def load_precomputed_embeddings():
     """
-    Load precomputed embeddings on startup if available.
-    Falls back to empty index if embeddings file doesn't exist.
+    Load precomputed embeddings on startup (only if index is empty)
+    Prevents reindexing when Weaviate already contains documents.
     """
     embeddings_path = Path("data/embeddings/embeddings.parquet")
     
@@ -35,14 +36,20 @@ async def load_precomputed_embeddings():
         return
     
     try:
+        indexing = IndexingService()
+        count_result = await indexing.get_document_count()
+        total_documents = count_result.get("document_count", 0)
+        
+        if total_documents > 0:
+            logger.info(f"Index already has {total_documents} documents. Skipping precomputed embeddings load.")
+            return
+        
         logger.info("Loading precomputed embeddings...")
-        
-        
         loader = EmbeddingLoader()
         embeddings_data = loader.load_from_parquet("embeddings.parquet")
-        count = loader.index_precomputed_embeddings(embeddings_data)
         
-        logger.info(f"Successfully loaded {count} documents from precomputed embeddings")
+        count = loader.index_precomputed_embeddings(embeddings_data)
+        logger.info(f"Successfully indexed {count} precomputed embeddings.")
         
     except Exception as e:
         logger.error(f"Error loading precomputed embeddings: {e}")
@@ -126,14 +133,14 @@ async def health_check():
     """
     try:
         
-        service = SearchService()        
+        service = IndexingService()        
 
         count_result = await service.get_document_count()
         
         return {
             "status": "healthy",
             "api_version": "1.0.0",
-            "indexed_documents": count_result.get("total_documents", 0),
+            "indexed_documents": count_result.get("document_count", 0),
         }
     except Exception as e:
         logger.error(f"Health check error: {e}")
