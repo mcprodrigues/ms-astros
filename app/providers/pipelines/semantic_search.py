@@ -16,8 +16,8 @@ class SearchPipeline:
     Uses Haystack Pipeline to orchestrate BM25 search.
     """
 
-    def __init__(self):
-        self.document_store_provider = DocumentStoreProvider()
+    def __init__(self, document_store_provider: DocumentStoreProvider):
+        self.document_store_provider = document_store_provider
         self.pipeline = self._build_pipeline()
 
     def search(self, query: str, top_k: int = 10) -> List[Document]:
@@ -68,4 +68,5 @@ def get_search_pipeline() -> SearchPipeline:
     Returns:
         SearchPipeline: Singleton search pipeline instance
     """
-    return SearchPipeline()
+    document_store_provider = DocumentStoreProvider()
+    return SearchPipeline(document_store_provider)
