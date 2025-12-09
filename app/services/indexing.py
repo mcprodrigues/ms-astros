@@ -22,8 +22,8 @@ class IndexingService(IIndexingService):
     - Document count
     """
 
-    def __init__(self, indexing_pipeline: IndexingPipeline = None):
-        self.indexing_pipeline = indexing_pipeline or IndexingPipeline()
+    def __init__(self, indexing_pipeline: IIndexingPipeline):
+        self.indexing_pipeline = indexing_pipeline
 
     async def ingest_single_movie(
         self,
