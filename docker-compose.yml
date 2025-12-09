@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  weaviate:
+    image: semitechnologies/weaviate:1.23.7
+    container_name: astros-weaviate
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      CLUSTER_HOSTNAME: 'node1'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      READ_ONLY: 'false'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - astros-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build: .
+    container_name: astros-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - WEAVIATE_URL=http://weaviate:8080
+      - WEAVIATE_GRPC_HOST=weaviate
+      - WEAVIATE_GRPC_PORT=50051
+      - WEAVIATE_INDEX_NAME=Movies
+    depends_on:
+      weaviate:
+        condition: service_healthy  # Wait for Weaviate to be ready
+    volumes:
+      - ./data/embeddings:/app/data/embeddings
+    networks:
+      - astros-network
+
+volumes:
+  weaviate_data:
+
+networks:
+  astros-network:
+    driver: bridge
