@@ -5,7 +5,7 @@ Provides endpoints for single uploads, batch operations, and management.
 
 import logging
 from fastapi import APIRouter, HTTPException, Form, Depends
-from typing import Optional, Annotated
+from typing import Optional
 
 from app.schemas.movie import MovieUpload
 from app.services.indexing import get_indexing_service
@@ -13,7 +13,7 @@ from app.services.interfaces import IIndexingService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/index", tags=["indexing"])
+router = APIRouter()
 
 
 @router.post("/movie")

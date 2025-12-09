@@ -1,18 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Annotated, Dict, Any
 import logging
 
 from app.schemas.search import SearchRequest, SearchResponse
-from app.services.indexing import get_indexing_service
-from app.services.interfaces import IIndexingService, ISearchService
-from app.services.search import SearchService, get_search_service
+from app.services.interfaces import ISearchService
+from app.services.search import get_search_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
 @router.post(
-    "/search/semantic",
+    "/semantic",
     response_model=SearchResponse,
     status_code=status.HTTP_200_OK,
     summary="Semantic Search",
@@ -30,9 +27,6 @@ async def semantic_search(
 
     Returns:
         SearchResponse with matching movies ranked by similarity
-
-    Raises:
-        HTTPException: If search fails
     """
     try:
         result = await service.semantic_search(request)
@@ -42,33 +36,4 @@ async def semantic_search(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Search failed: {str(e)}",
-        )
-
-
-@router.get(
-    "/health",
-    status_code=status.HTTP_200_OK,
-    summary="Health Check",
-    description="Check if the search service is healthy",
-)
-async def health_check(
-    service: IIndexingService = Depends(get_indexing_service),
-) -> Dict[str, Any]:
-    """
-    Health check endpoint.
-
-    Returns:
-        Dict with service status and document count
-    """
-    try:
-        doc_count = await service.get_document_count()
-        return {
-            "status": "healthy",
-            "service": "semantic_search",
-            "indexed_documents": doc_count,
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service unhealthy"
         )
