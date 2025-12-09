@@ -30,19 +30,6 @@ class EmbedderComponent:
         if self._model is None:
             self._load_model()
 
-    def _load_model(self) -> None:
-        """
-        Load the sentence-transformers model.
-        Model is cached after first load for performance.
-        """
-        try:
-            logger.info(f"Loading embedding model: {self._model_name}")
-            self._model = SentenceTransformer(self._model_name)
-            logger.info("Model loaded successfully")
-        except Exception as e:
-            logger.error(f"Error loading model: {e}")
-            raise
-
     def encode(self, text: str) -> np.ndarray:
         """
         Generate embedding for a single text.
@@ -96,3 +83,17 @@ class EmbedderComponent:
           int: Dimension of the embeddings
         """
         return self._model.get_sentence_embedding_dimension()
+    
+    
+    def _load_model(self) -> None:
+        """
+        Load the sentence-transformers model.
+        Model is cached after first load for performance.
+        """
+        try:
+            logger.info(f"Loading embedding model: {self._model_name}")
+            self._model = SentenceTransformer(self._model_name)
+            logger.info("Model loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading model: {e}")
+            raise
