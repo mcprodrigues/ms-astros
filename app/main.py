@@ -1,46 +1,88 @@
+"""
+Main FastAPI application with lifespan management.
+Loads precomputed embeddings on startup if available.
+"""
+
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
 import logging
 
-from app.routers.search import router as search_router
-from app.services.search_service import SearchService
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.scripts.load_embeddings import EmbeddingLoader
+from app.api import api_router
+from app.services.indexing import IndexingService
+from app.services.search import SearchService
 
-# Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
+async def load_precomputed_embeddings():
+    """
+    Load precomputed embeddings on startup (only if index is empty)
+    Prevents reindexing when Weaviate already contains documents.
+    """
+    embeddings_path = Path("data/embeddings/embeddings.parquet")
+    
+    if not embeddings_path.exists():
+        logger.warning(f"Embeddings file not found: {embeddings_path}")
+        logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
+        return
+    
+    try:
+        indexing = IndexingService()
+        count_result = await indexing.get_document_count()
+        total_documents = count_result.get("document_count", 0)
+        
+        if total_documents > 0:
+            logger.info(f"Index already has {total_documents} documents. Skipping precomputed embeddings load.")
+            return
+        
+        logger.info("Loading precomputed embeddings...")
+        loader = EmbeddingLoader()
+        embeddings_data = loader.load_from_parquet("embeddings.parquet")
+        
+        count = loader.index_precomputed_embeddings(embeddings_data)
+        logger.info(f"Successfully indexed {count} precomputed embeddings.")
+        
+    except Exception as e:
+        logger.error(f"Error loading precomputed embeddings: {e}")
+        logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Lifespan event handler for startup and shutdown events.
-    Handles the initialization of the search service and data indexing.
+    Application startup/shutdown lifecycle.
     """
-    logger.info("Starting Astros Semantic Search API...")
-
-    # Initialize search service and index data
-    search_service = SearchService()
+    logger.info("=" * 60)
+    logger.info("Starting Astros Semantic Search API")
+    logger.info("=" * 60)
 
     try:
         # Wait for Weaviate to be ready
+        logger.info("Waiting for Weaviate to be ready...")
         await asyncio.sleep(10)
+        logger.info("Weaviate connection established")
 
-        # Index movies on startup
-        logger.info("Starting movie indexation...")
-        result = await search_service.index_movies_from_csv()
-        logger.info(f"Indexation completed: {result}")
+        # Load precomputed embeddings if available
+        await load_precomputed_embeddings()
 
     except Exception as e:
-        logger.error(f"Error during startup indexation: {e}")
+        logger.error(f"Error during startup: {e}")
+        logger.warning("API will start but may not have indexed documents")
 
+    logger.info("=" * 60)
+    logger.info("Astros API Ready")
+    logger.info("=" * 60)
+    
     yield
 
-    # Cleanup on shutdown
     logger.info("Shutting down Astros Semantic Search API...")
 
 
@@ -52,7 +94,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -61,25 +103,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(search_router, prefix="/api/v1", tags=["search"])
+app.include_router(api_router)
 
-
-@app.get("/")
+@app.get("/", tags=["root"])
 async def root():
-    """Root endpoint with API information."""
+    """API root endpoint with basic information."""
     return {
         "name": "Astros Semantic Search API",
         "version": "1.0.0",
         "status": "running",
         "endpoints": {
-            "semantic_search": "/api/v1/search/semantic",
-            "health": "/api/v1/health",
+            "docs": "/docs",
+            "search": "/api/v1/search",
+            "index": "/api/v1/index",
+            "health": "/ping",
         },
     }
 
-
-@app.get("/health")
-async def health_check():
+@app.get("/ping", tags=["health"])
+async def ping():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    return {"message": "pong!", "status": "healthy"}
+
+
+@app.get("/health", tags=["health"])
+async def health_check():
+    """
+    Detailed health check with document count.
+    """
+    try:
+        
+        service = IndexingService()        
+
+        count_result = await service.get_document_count()
+        
+        return {
+            "status": "healthy",
+            "api_version": "1.0.0",
+            "indexed_documents": count_result.get("document_count", 0),
+        }
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return {
+            "status": "degraded",
+            "error": str(e),
+        }

@@ -1,48 +1,58 @@
-"""
-Service interfaces for dependency injection and inversion of control.
-
-This module defines abstract interfaces for service implementations,
-enabling dependency injection and making the codebase more testable
-and maintainable by decoupling concrete implementations from their usage.
-"""
-
 from abc import ABC, abstractmethod
-from app_boilerplate.schemas.email import SendEmailRequest, SendEmailResponse
+from typing import Dict, Any
+from app.schemas.search import SearchRequest, SearchResponse
+from app.schemas.movie import MovieResponse
 
 
-class IEmailService(ABC):
+class ISearchService(ABC):
     """
-    Abstract interface for email service operations.
-
-    This interface defines the contract that all email service
-    implementations must follow, ensuring consistency and enabling
-    dependency injection for better testability and maintainability.
-
-    The interface follows the Interface Segregation Principle by defining
-    only the essential methods required for email operations.
+    Abstract interface for Search Service.
+    Defines methods for document ingestion and semantic search.
     """
 
     @abstractmethod
-    async def send_email(self, request: SendEmailRequest) -> SendEmailResponse:
+    async def semantic_search(self, search_request: SearchRequest) -> SearchResponse:
         """
-        Send an email to the specified recipient.
+        Execute semantic search using search pipeline.
+        """
+        pass
+    
+class IIndexingService(ABC):
 
-        This method should implement the complete email sending process,
-        including validation, formatting, and delivery through the email provider.
+    @abstractmethod
+    async def ingest_single_movie(
+        self,
+        titulo: str,
+        sinopse: str = "",
+        descricao: str = "",
+        palavras_chave: str = "",
+        diretor: str = "",
+        movie_id: str = None,
+    ) -> Dict[str, Any]:
+        """
+        Ingest a single movie document incrementally.
+        """
+        pass
 
-        Args:
-            request (SendEmailRequest): Request containing email details
-                                      including recipient, subject, and body
+    @abstractmethod
+    async def ingest_movies_from_csv(
+        self, csv_path: str = "data/movies.csv"
+    ) -> Dict[str, Any]:
+        """
+        Ingest movies in batch from CSV file.
+        """
+        pass
 
-        Returns:
-            SendEmailResponse: Response containing the result of the email
-                             sending operation with success status and message
+    @abstractmethod
+    async def delete_movie(self, movie_id: str) -> Dict[str, Any]:
+        """
+        Delete a movie document by its ID.
+        """
+        pass
 
-        Raises:
-            Exception: If there's an error during the email sending process
-
-        Note:
-            Implementations should handle errors gracefully and provide
-            meaningful error messages for debugging purposes.
+    @abstractmethod
+    async def get_document_count(self) -> Dict[str, Any]:
+        """
+        Get the total count of documents in the index.
         """
         pass
