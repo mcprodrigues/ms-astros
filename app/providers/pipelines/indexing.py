@@ -69,7 +69,7 @@ class IndexingPipeline(IIndexingPipeline):
 
     def reset_index(self) -> None:
         logger.warning("Resetting entire index")
-        self._guard(lambda: self._store().delete_all_documents())
+        self._guard(self.document_store_provider.reset)
         logger.info("Index reset complete")
 
     def is_ready(self) -> bool:

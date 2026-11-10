@@ -40,6 +40,11 @@ jobs:
           version: "0.13.7"
           enable-cache: true
       - run: uv sync --frozen
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('app/settings.py') }}
       - name: Wait for Weaviate
         run: |
           for i in $(seq 1 30); do
@@ -48,3 +53,5 @@ jobs:
           done
           exit 1
       - run: uv run pytest -m integration
+        env:
+          WEAVIATE_URL: http://localhost:8080

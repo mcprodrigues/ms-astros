@@ -68,6 +68,12 @@ class InMemoryStoreProvider(IDocumentStoreProvider):
     def is_ready(self) -> bool:
         return self.ready
 
+    def ensure_compatible_schema(self) -> None:
+        pass
+
+    def reset(self) -> None:
+        self.store.delete_all_documents()
+
     def document_exists(self, doc_id: str) -> bool:
         filters = {"field": "id", "operator": "==", "value": doc_id}
         return bool(self.store.filter_documents(filters=filters))

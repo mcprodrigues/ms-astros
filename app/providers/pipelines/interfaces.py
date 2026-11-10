@@ -42,6 +42,14 @@ class IDocumentStoreProvider(ABC):
         """True when the backing store answers readiness checks."""
 
     @abstractmethod
+    def reset(self) -> None:
+        """Delete every document, leaving an empty index with the declared schema."""
+
+    @abstractmethod
+    def ensure_compatible_schema(self) -> None:
+        """Raise StoreSchemaError if an existing index has an incompatible schema."""
+
+    @abstractmethod
     def document_exists(self, doc_id: str) -> bool:
         """True when a document with this ID is stored."""
 

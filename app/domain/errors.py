@@ -22,5 +22,9 @@ class StoreUnavailableError(AstrosError):
     """The document store cannot be reached."""
 
 
+class StoreSchemaError(AstrosError):
+    """An existing index was created with an incompatible schema."""
+
+
 class EmbeddingModelMismatchError(AstrosError):
     """The embeddings file was produced by a different model than the configured one."""

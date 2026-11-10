@@ -61,6 +61,7 @@ def build_container(settings: Settings) -> Container:
     """Wire the full object graph. Blocks until the document store is ready."""
     store_provider = build_document_store_provider(settings)
     store_provider.wait_until_ready()
+    store_provider.ensure_compatible_schema()
 
     embedder = build_embedder(settings)
     indexing_pipeline = IndexingPipeline(document_store_provider=store_provider, embedder=embedder)
