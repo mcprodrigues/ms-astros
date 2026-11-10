@@ -2,22 +2,31 @@ import logging
 import time
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
+from haystack_integrations.document_stores.weaviate.document_store import (
+    DOCUMENT_COLLECTION_PROPERTIES,
+)
 from weaviate.config import AdditionalConfig, Timeout
 from weaviate.util import generate_uuid5
 
-from app.domain.errors import StoreUnavailableError
+from app.domain.errors import StoreSchemaError, StoreUnavailableError
 from app.providers.pipelines.interfaces import IDocumentStoreProvider
 
 logger = logging.getLogger(__name__)
 
-SEARCHABLE_TEXT_PROPERTIES = (
-    "content",
-    "titulo",
-    "sinopse",
-    "descricao",
-    "palavras_chave",
-    "diretor",
-)
+SEARCHABLE_TEXT_PROPERTIES = ("titulo", "sinopse", "descricao", "palavras_chave", "diretor")
+
+
+def collection_properties() -> list[dict]:
+    """
+    Haystack's own properties (`_original_id`, `content`, `score`, ...) plus the
+    movie fields. Declaring all of them explicitly prevents Weaviate's
+    auto-schema from guessing types, e.g. typing UUID-shaped IDs as `uuid`.
+    """
+    own = [
+        {"name": name, "dataType": ["text"], "indexSearchable": True}
+        for name in SEARCHABLE_TEXT_PROPERTIES
+    ]
+    return [dict(prop) for prop in DOCUMENT_COLLECTION_PROPERTIES] + own
 
 
 class DocumentStoreProvider(IDocumentStoreProvider):
@@ -34,6 +43,7 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         insert_timeout_seconds: float = 60.0,
     ):
         self._url = url
+        self._index_name = index_name
         self._connect_attempts = connect_attempts
         self._backoff_seconds = backoff_seconds
         self._document_store = WeaviateDocumentStore(
@@ -45,10 +55,7 @@ class DocumentStoreProvider(IDocumentStoreProvider):
             collection_settings={
                 "class": index_name,
                 "vectorizer": "none",
-                "properties": [
-                    {"name": name, "dataType": ["text"], "indexSearchable": True}
-                    for name in SEARCHABLE_TEXT_PROPERTIES
-                ],
+                "properties": collection_properties(),
             },
         )
 
@@ -61,6 +68,30 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         except Exception as e:
             logger.warning("Weaviate readiness check failed: %s", e)
             return False
+
+    def reset(self) -> None:
+        # Drop and recreate: faster than deleting in batches, and re-applies the schema.
+        self._document_store.delete_all_documents(recreate_index=True)
+
+    def ensure_compatible_schema(self) -> None:
+        expected = {p["name"]: p["dataType"][0] for p in collection_properties()}
+        actual = {
+            p.name: p.data_type.value
+            for p in self._document_store.collection.config.get().properties
+        }
+        wrong = {
+            name: (actual[name], expected[name])
+            for name in expected
+            if name in actual and actual[name] != expected[name]
+        }
+        if wrong:
+            details = ", ".join(f"{n} is {a}, expected {e}" for n, (a, e) in wrong.items())
+            raise StoreSchemaError(
+                f"Weaviate collection {self._index_name!r} has an incompatible schema "
+                f"({details}). It cannot be fixed in place: drop it with "
+                f"`curl -X DELETE {self._url}/v1/schema/{self._index_name}` and restart; "
+                "the index is reseeded from the precomputed embeddings."
+            )
 
     def document_exists(self, doc_id: str) -> bool:
         # The Weaviate store keys objects by uuid5 of the Haystack document id.
