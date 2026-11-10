@@ -42,6 +42,10 @@ class IDocumentStoreProvider(ABC):
         """True when the backing store answers readiness checks."""
 
     @abstractmethod
+    def document_exists(self, doc_id: str) -> bool:
+        """True when a document with this ID is stored."""
+
+    @abstractmethod
     def wait_until_ready(self) -> None:
         """Block until the store is ready, retrying with backoff; raise if it never is."""
 
@@ -63,7 +67,11 @@ class IRetrieverFactory(ABC):
 
 
 class IIndexingPipeline(ABC):
-    """Document ingestion and index management."""
+    """
+    Document ingestion and index management.
+
+    Implementations raise StoreUnavailableError when the store cannot be reached.
+    """
 
     @abstractmethod
     def index_single_document(
@@ -85,7 +93,7 @@ class IIndexingPipeline(ABC):
 
     @abstractmethod
     def delete_document(self, doc_id: str) -> bool:
-        """Remove a document by ID."""
+        """Remove a document by ID; False when no such document exists."""
 
     @abstractmethod
     def reset_index(self) -> None:

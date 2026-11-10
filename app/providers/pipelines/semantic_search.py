@@ -9,6 +9,7 @@ from app.providers.pipelines.interfaces import (
     IRetrieverFactory,
     ISearchPipeline,
 )
+from app.providers.pipelines.store_guard import call_store
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,11 @@ class SearchPipeline(ISearchPipeline):
 
     def search(self, query: str, top_k: int = 10) -> list[Document]:
         query_embedding = self.embedder.encode(query).tolist()
-        result = self.pipeline.run(
-            {"retriever": {"query_embedding": query_embedding, "top_k": top_k}}
+        result = call_store(
+            self.document_store_provider,
+            lambda: self.pipeline.run(
+                {"retriever": {"query_embedding": query_embedding, "top_k": top_k}}
+            ),
         )
         documents = [
             replace(doc, score=self.retriever_factory.to_cosine_similarity(doc.score))

@@ -8,6 +8,7 @@ from haystack.components.writers import DocumentWriter
 from haystack.document_stores.types import DuplicatePolicy
 
 from app.providers.pipelines.interfaces import IDocumentStoreProvider, IEmbedder, IIndexingPipeline
+from app.providers.pipelines.store_guard import call_store
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,6 @@ class IndexingPipeline(IIndexingPipeline):
         embedding = self.embedder.encode(content)
         document = Document(id=doc_id, content=content, embedding=embedding.tolist(), meta=metadata)
         written = self._write([document])
-        logger.info("Indexed document %s", document.id)
         return {
             "status": "success",
             "document_id": document.id,
@@ -56,33 +56,33 @@ class IndexingPipeline(IIndexingPipeline):
         return self._write(documents)
 
     def count_documents(self) -> int:
-        try:
-            return self._store().count_documents()
-        except Exception as e:
-            logger.error("Error counting documents: %s", e)
-            return 0
+        return self._guard(lambda: self._store().count_documents())
 
     def delete_document(self, doc_id: str) -> bool:
-        try:
+        def delete() -> bool:
+            if not self.document_store_provider.document_exists(doc_id):
+                return False
             self._store().delete_documents([doc_id])
             return True
-        except Exception as e:
-            logger.error("Error deleting document %s: %s", doc_id, e)
-            return False
+
+        return self._guard(delete)
 
     def reset_index(self) -> None:
         logger.warning("Resetting entire index")
-        self._store().delete_all_documents()
+        self._guard(lambda: self._store().delete_all_documents())
         logger.info("Index reset complete")
 
     def is_ready(self) -> bool:
         return self.document_store_provider.is_ready()
 
+    def _guard(self, operation):
+        return call_store(self.document_store_provider, operation)
+
     def _store(self):
         return self.document_store_provider.get_document_store()
 
     def _write(self, documents: list[Document]) -> int:
-        result = self.pipeline.run({"writer": {"documents": documents}})
+        result = self._guard(lambda: self.pipeline.run({"writer": {"documents": documents}}))
         return result["writer"]["documents_written"]
 
     def _build_pipeline(self) -> Pipeline:

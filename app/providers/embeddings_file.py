@@ -14,6 +14,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from app.domain.errors import EmbeddingModelMismatchError
+
 _MODEL_KEY = b"astros.embedding_model"
 _DIM_KEY = b"astros.embedding_dim"
 
@@ -22,10 +24,6 @@ _DIM_KEY = b"astros.embedding_dim"
 class EmbeddingFingerprint:
     model_name: str
     dimension: int
-
-
-class EmbeddingModelMismatchError(RuntimeError):
-    """The embeddings file was produced by a different model than the configured one."""
 
 
 def write_embeddings_parquet(

@@ -15,6 +15,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.domain.errors import InvalidCatalogError
+
 # Fixed namespace: changing it changes every movie ID.
 MOVIE_ID_NAMESPACE = uuid.UUID("6f1c2b8e-3a5d-4e7f-9b0a-1c2d3e4f5a6b")
 
@@ -100,10 +102,6 @@ class Movie(BaseModel):
     @property
     def metadata(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in METADATA_FIELDS}
-
-
-class InvalidCatalogError(ValueError):
-    """The catalog file is missing required columns."""
 
 
 @dataclass(frozen=True)

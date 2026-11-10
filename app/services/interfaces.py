@@ -25,12 +25,15 @@ class IIndexingService(ABC):
         """Ingest a single movie document incrementally."""
 
     @abstractmethod
-    async def ingest_movies_from_csv(self, csv_path: str) -> dict[str, Any]:
-        """Ingest movies in batch from a CSV file."""
+    async def ingest_catalog_csv(self, data: bytes) -> dict[str, Any]:
+        """
+        Ingest a catalog CSV (raw bytes). Reports inserted/updated counts plus
+        duplicate and invalid rows. Raises InvalidCatalogError for unreadable files.
+        """
 
     @abstractmethod
     async def delete_movie(self, movie_id: str) -> dict[str, Any]:
-        """Delete a movie document by its ID."""
+        """Delete a movie by ID. Raises MovieNotFoundError when it does not exist."""
 
     @abstractmethod
     async def get_document_count(self) -> dict[str, Any]:
