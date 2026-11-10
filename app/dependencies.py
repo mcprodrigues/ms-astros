@@ -48,6 +48,8 @@ def build_document_store_provider(settings: Settings) -> IDocumentStoreProvider:
         grpc_port=settings.WEAVIATE_GRPC_PORT,
         connect_attempts=settings.WEAVIATE_CONNECT_ATTEMPTS,
         backoff_seconds=settings.WEAVIATE_CONNECT_BACKOFF_SECONDS,
+        query_timeout_seconds=settings.WEAVIATE_QUERY_TIMEOUT_SECONDS,
+        insert_timeout_seconds=settings.WEAVIATE_INSERT_TIMEOUT_SECONDS,
     )
 
 

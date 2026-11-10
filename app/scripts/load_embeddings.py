@@ -36,7 +36,7 @@ class EmbeddingLoader:
                 embedding=[float(x) for x in row["embedding"]],
                 meta={name: row.get(name, "") for name in METADATA_FIELDS},
             )
-            for _, row in df.iterrows()
+            for row in df.to_dict(orient="records")
         ]
         logger.info("Loaded %d embeddings from %s", len(documents), path)
         return documents

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 from app.bootstrap import load_precomputed_embeddings_if_empty
 from app.dependencies import Container, build_container
+from app.error_handlers import register_error_handlers
 from app.settings import Settings
 
 logging.basicConfig(
@@ -58,13 +59,15 @@ def create_app(
         version=API_VERSION,
         lifespan=lifespan,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    if settings.CORS_ALLOW_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.CORS_ALLOW_ORIGINS,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "DELETE"],
+            allow_headers=["Content-Type", "X-API-Key"],
+        )
+    register_error_handlers(app)
     app.include_router(api_router)
 
     @app.get("/", tags=["root"])

@@ -1,3 +1,4 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,14 @@ class Settings(BaseSettings):
     WEAVIATE_INDEX_NAME: str = "AstrosMovies"
     WEAVIATE_CONNECT_ATTEMPTS: int = 10
     WEAVIATE_CONNECT_BACKOFF_SECONDS: float = 1.0
+    WEAVIATE_QUERY_TIMEOUT_SECONDS: float = 10.0
+    WEAVIATE_INSERT_TIMEOUT_SECONDS: float = 60.0
+
+    # Security. Write/destructive routes require X-API-Key; when API_KEY is
+    # unset they are disabled (fail closed).
+    API_KEY: SecretStr | None = None
+    CORS_ALLOW_ORIGINS: list[str] = []
+    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
 
     # Data
     CSV_FILE_PATH: str = "data/movies.csv"

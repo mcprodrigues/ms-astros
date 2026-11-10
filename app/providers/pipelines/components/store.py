@@ -2,7 +2,10 @@ import logging
 import time
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
+from weaviate.config import AdditionalConfig, Timeout
+from weaviate.util import generate_uuid5
 
+from app.domain.errors import StoreUnavailableError
 from app.providers.pipelines.interfaces import IDocumentStoreProvider
 
 logger = logging.getLogger(__name__)
@@ -17,10 +20,6 @@ SEARCHABLE_TEXT_PROPERTIES = (
 )
 
 
-class StoreUnavailableError(RuntimeError):
-    """Raised when the document store cannot be reached."""
-
-
 class DocumentStoreProvider(IDocumentStoreProvider):
     """Owns a single WeaviateDocumentStore connection."""
 
@@ -31,6 +30,8 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         grpc_port: int = 50051,
         connect_attempts: int = 10,
         backoff_seconds: float = 1.0,
+        query_timeout_seconds: float = 10.0,
+        insert_timeout_seconds: float = 60.0,
     ):
         self._url = url
         self._connect_attempts = connect_attempts
@@ -38,6 +39,9 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         self._document_store = WeaviateDocumentStore(
             url=url,
             grpc_port=grpc_port,
+            additional_config=AdditionalConfig(
+                timeout=Timeout(init=5, query=query_timeout_seconds, insert=insert_timeout_seconds)
+            ),
             collection_settings={
                 "class": index_name,
                 "vectorizer": "none",
@@ -57,6 +61,10 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         except Exception as e:
             logger.warning("Weaviate readiness check failed: %s", e)
             return False
+
+    def document_exists(self, doc_id: str) -> bool:
+        # The Weaviate store keys objects by uuid5 of the Haystack document id.
+        return self._document_store.collection.data.exists(generate_uuid5(doc_id))
 
     def wait_until_ready(self) -> None:
         delay = self._backoff_seconds

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from app.providers.pipelines.interfaces import ISearchPipeline
@@ -29,7 +30,9 @@ class SearchService(ISearchService):
             else self.default_min_score
         )
 
-        documents = self.search_pipeline.search(query=search_request.query, top_k=top_k)
+        documents = await asyncio.to_thread(
+            self.search_pipeline.search, query=search_request.query, top_k=top_k
+        )
         results = [
             MovieResponse(
                 id=doc.id,
