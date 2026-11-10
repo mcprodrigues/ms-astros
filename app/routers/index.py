@@ -7,8 +7,8 @@ import logging
 
 from fastapi import APIRouter, Depends, Form, HTTPException
 
+from app.dependencies import get_indexing_service
 from app.schemas.movie import MovieUpload
-from app.services.indexing import get_indexing_service
 from app.services.interfaces import IIndexingService
 
 logger = logging.getLogger(__name__)
@@ -117,12 +117,7 @@ async def reset_index(
     Reset the entire index (dangerous).
     """
     try:
-        service.indexing_pipeline.reset_index()
-
-        return {
-            "status": "success",
-            "message": "Index reset complete. All documents deleted.",
-        }
+        return await service.reset_index()
     except Exception as e:
         logger.error(f"Reset index error: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e

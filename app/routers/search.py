@@ -2,9 +2,9 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.dependencies import get_search_service
 from app.schemas.search import SearchRequest, SearchResponse
 from app.services.interfaces import ISearchService
-from app.services.search import get_search_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

@@ -1,32 +1,28 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """
-    Application settings loaded from environment variables.
-    Uses pydantic-settings for validation and type safety.
+    Application settings loaded from environment variables (and `.env`).
+    This is the only place configuration is read.
     """
 
-    # Weaviate configuration
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
+
+    # Weaviate
     WEAVIATE_URL: str = "http://localhost:8080"
-    WEAVIATE_GRPC_HOST: str = "localhost"
     WEAVIATE_GRPC_PORT: int = 50051
     WEAVIATE_INDEX_NAME: str = "AstrosMovies"
+    WEAVIATE_CONNECT_ATTEMPTS: int = 10
+    WEAVIATE_CONNECT_BACKOFF_SECONDS: float = 1.0
 
-    # CSV file path
+    # Data
     CSV_FILE_PATH: str = "data/movies.csv"
+    EMBEDDINGS_PATH: str = "data/embeddings/embeddings.parquet"
 
-    # Embedding model configuration
-    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    # Embedding model (must match the model that produced EMBEDDINGS_PATH)
+    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-    # Search configuration
+    # Search
     DEFAULT_TOP_K: int = 5
     MIN_SCORE_THRESHOLD: float = 0.5
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
-
-# Global settings instance
-settings = Settings()
