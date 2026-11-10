@@ -68,6 +68,10 @@ class InMemoryStoreProvider(IDocumentStoreProvider):
     def is_ready(self) -> bool:
         return self.ready
 
+    def document_exists(self, doc_id: str) -> bool:
+        filters = {"field": "id", "operator": "==", "value": doc_id}
+        return bool(self.store.filter_documents(filters=filters))
+
     def wait_until_ready(self) -> None:
         pass
 
@@ -85,7 +89,9 @@ class InMemoryEmbeddingRetrieverFactory(IRetrieverFactory):
         return raw_score
 
 
-def make_container(store_provider: InMemoryStoreProvider | None = None) -> Container:
+def make_container(
+    store_provider: InMemoryStoreProvider | None = None, settings: Settings | None = None
+) -> Container:
     provider = store_provider or InMemoryStoreProvider()
     embedder = FakeEmbedder()
     indexing = IndexingPipeline(document_store_provider=provider, embedder=embedder)
@@ -95,7 +101,7 @@ def make_container(store_provider: InMemoryStoreProvider | None = None) -> Conta
         retriever_factory=InMemoryEmbeddingRetrieverFactory(),
     )
     return Container(
-        settings=Settings(),
+        settings=settings or Settings(_env_file=None),
         document_store_provider=provider,
         embedder=embedder,
         indexing_pipeline=indexing,
