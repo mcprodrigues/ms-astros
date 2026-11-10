@@ -34,5 +34,6 @@ class Settings(BaseSettings):
 
     # Search
     DEFAULT_TOP_K: int = 5
-    # Provisional, from sampled real queries; recalibrate on the golden set.
+    # Calibrated on the golden set (docs/evaluation/v1-baseline.md): the lowest
+    # threshold at which no out-of-domain query returns results.
     MIN_SCORE_THRESHOLD: float = 0.42
