@@ -20,6 +20,7 @@ class IIndexingService(ABC):
         palavras_chave: str = "",
         diretor: str = "",
         movie_id: str | None = None,
+        ano: int | None = None,
     ) -> dict[str, Any]:
         """Ingest a single movie document incrementally."""
 

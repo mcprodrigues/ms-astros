@@ -10,11 +10,10 @@ from pathlib import Path
 import pandas as pd
 from haystack import Document
 
+from app.domain.movie import METADATA_FIELDS
 from app.providers.pipelines.interfaces import IIndexingPipeline
 
 logger = logging.getLogger(__name__)
-
-METADATA_FIELDS = ("titulo", "sinopse", "descricao", "palavras_chave", "diretor")
 
 
 class EmbeddingLoader:
@@ -33,7 +32,7 @@ class EmbeddingLoader:
                 id=row["id"],
                 content=row["content"],
                 embedding=[float(x) for x in row["embedding"]],
-                meta={field: row.get(field, "") for field in METADATA_FIELDS},
+                meta={name: row.get(name, "") for name in METADATA_FIELDS},
             )
             for _, row in df.iterrows()
         ]

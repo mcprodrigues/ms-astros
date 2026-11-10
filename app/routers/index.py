@@ -32,6 +32,7 @@ async def ingest_single_movie(
             palavras_chave=movie.palavras_chave,
             diretor=movie.diretor,
             movie_id=movie.movie_id,
+            ano=movie.ano,
         )
     except Exception as e:
         logger.error(f"Single movie ingestion error: {e}")
@@ -47,6 +48,7 @@ async def ingest_movie_form(
     palavras_chave: str = Form(""),
     diretor: str = Form(""),
     movie_id: str | None = Form(None),
+    ano: int | None = Form(None),
 ):
     """
     Ingest a single movie via HTML form or multipart/form-data.
@@ -59,6 +61,7 @@ async def ingest_movie_form(
             palavras_chave=palavras_chave,
             diretor=diretor,
             movie_id=movie_id,
+            ano=ano,
         )
     except Exception as e:
         logger.error(f"Form movie ingestion error: {e}")
