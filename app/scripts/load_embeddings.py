@@ -7,11 +7,11 @@ Usage: uv run python -m app.scripts.load_embeddings
 import logging
 from pathlib import Path
 
-import pandas as pd
 from haystack import Document
 
 from app.domain.movie import METADATA_FIELDS
-from app.providers.pipelines.interfaces import IIndexingPipeline
+from app.providers.embeddings_file import fingerprint_of, read_embeddings_parquet
+from app.providers.pipelines.interfaces import IEmbedder, IIndexingPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,16 @@ logger = logging.getLogger(__name__)
 class EmbeddingLoader:
     """Reads precomputed embeddings and writes them through the indexing pipeline."""
 
-    def __init__(self, indexing_pipeline: IIndexingPipeline):
+    def __init__(self, indexing_pipeline: IIndexingPipeline, embedder: IEmbedder):
         self.indexing_pipeline = indexing_pipeline
+        self.embedder = embedder
 
     def load_from_parquet(self, path: Path) -> list[Document]:
+        """Raises EmbeddingModelMismatchError if the file came from another model."""
         if not path.exists():
             raise FileNotFoundError(f"Parquet file not found: {path}")
 
-        df = pd.read_parquet(path)
+        df = read_embeddings_parquet(path, expected=fingerprint_of(self.embedder))
         documents = [
             Document(
                 id=row["id"],
@@ -51,7 +53,9 @@ def main() -> None:
     settings = Settings()
     container = build_container(settings)
     try:
-        loader = EmbeddingLoader(indexing_pipeline=container.indexing_pipeline)
+        loader = EmbeddingLoader(
+            indexing_pipeline=container.indexing_pipeline, embedder=container.embedder
+        )
         count = loader.index_documents(loader.load_from_parquet(Path(settings.EMBEDDINGS_PATH)))
         logger.info("Indexed %d documents", count)
     finally:

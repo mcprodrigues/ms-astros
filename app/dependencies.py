@@ -63,7 +63,9 @@ def build_container(settings: Settings) -> Container:
     embedder = build_embedder(settings)
     indexing_pipeline = IndexingPipeline(document_store_provider=store_provider, embedder=embedder)
     search_pipeline = SearchPipeline(
-        document_store_provider=store_provider, retriever_factory=RetrieverComponent()
+        document_store_provider=store_provider,
+        embedder=embedder,
+        retriever_factory=RetrieverComponent(),
     )
     return Container(
         settings=settings,
@@ -72,7 +74,11 @@ def build_container(settings: Settings) -> Container:
         indexing_pipeline=indexing_pipeline,
         search_pipeline=search_pipeline,
         indexing_service=IndexingService(indexing_pipeline=indexing_pipeline),
-        search_service=SearchService(search_pipeline=search_pipeline),
+        search_service=SearchService(
+            search_pipeline=search_pipeline,
+            default_top_k=settings.DEFAULT_TOP_K,
+            default_min_score=settings.MIN_SCORE_THRESHOLD,
+        ),
     )
 
 

@@ -15,6 +15,8 @@ from haystack import Document
 class IEmbedder(ABC):
     """Generates vector embeddings for text."""
 
+    model_name: str
+
     @abstractmethod
     def encode(self, text: str) -> np.ndarray:
         """Embed a single text."""
@@ -49,11 +51,15 @@ class IDocumentStoreProvider(ABC):
 
 
 class IRetrieverFactory(ABC):
-    """Builds retriever components bound to a document store."""
+    """Builds embedding retrievers bound to a document store."""
 
     @abstractmethod
     def create_retriever(self, document_store: Any) -> Any:
-        """Create a retriever for the given document store."""
+        """Create a retriever whose `run` accepts `query_embedding` and `top_k`."""
+
+    @abstractmethod
+    def to_cosine_similarity(self, raw_score: float) -> float:
+        """Convert the backend's native score into cosine similarity."""
 
 
 class IIndexingPipeline(ABC):
@@ -91,8 +97,13 @@ class IIndexingPipeline(ABC):
 
 
 class ISearchPipeline(ABC):
-    """Query-time retrieval."""
+    """Query-time semantic retrieval."""
 
     @abstractmethod
     def search(self, query: str, top_k: int = 10) -> list[Document]:
-        """Return documents ranked by relevance to the query."""
+        """
+        Return the `top_k` documents most similar to the query, best first.
+
+        Contract: each document's `score` is the cosine similarity between the
+        query and document embeddings, whatever the backend.
+        """
