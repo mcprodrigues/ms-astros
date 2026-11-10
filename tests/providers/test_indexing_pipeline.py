@@ -1,4 +1,4 @@
-from tests.fakes import make_document
+from tests.fakes import DIM, make_document
 
 
 def test_index_single_document_returns_generated_id(container):
@@ -39,7 +39,7 @@ def test_index_precomputed_documents_keeps_given_embeddings(container, store_pro
     )
 
     assert written == 1
-    assert store_provider.store.filter_documents()[0].embedding == [0.1] * 4
+    assert store_provider.store.filter_documents()[0].embedding == [0.1] * DIM
 
 
 def test_reset_index_deletes_everything(container):

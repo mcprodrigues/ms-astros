@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 from haystack import Document
-from haystack.components.retrievers.in_memory import InMemoryBM25Retriever
+from haystack.components.retrievers.in_memory import InMemoryEmbeddingRetriever
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 
 from app.dependencies import Container
@@ -19,12 +19,35 @@ from app.services.indexing import IndexingService
 from app.services.search import SearchService
 from app.settings import Settings
 
-DIM = 4
+# Words mapped onto "concept" axes, so related words share a direction even
+# with no lexical overlap ("campo" ~ "rural"). The last axis is a small bias
+# that keeps every vector non-zero.
+CONCEPTS = {
+    "rural": 0,
+    "campo": 0,
+    "terra": 0,
+    "sindicalismo": 1,
+    "luta": 1,
+    "trabalho": 1,
+    "férias": 2,
+    "família": 2,
+    "infância": 2,
+    "méxico": 3,
+    "poema": 3,
+}
+DIM = 5
 
 
 class FakeEmbedder(IEmbedder):
+    model_name = "fake-concept-model"
+
     def encode(self, text: str) -> np.ndarray:
-        return np.full(DIM, float(len(text) % 7), dtype=np.float32)
+        vector = np.zeros(DIM, dtype=np.float32)
+        vector[-1] = 0.01
+        for word in text.lower().replace(".", " ").replace(",", " ").split():
+            if word in CONCEPTS:
+                vector[CONCEPTS[word]] += 1.0
+        return vector
 
     def encode_batch(self, texts: list[str], batch_size: int = 32) -> np.ndarray:
         return np.stack([self.encode(t) for t in texts])
@@ -35,7 +58,7 @@ class FakeEmbedder(IEmbedder):
 
 class InMemoryStoreProvider(IDocumentStoreProvider):
     def __init__(self, ready: bool = True):
-        self.store = InMemoryDocumentStore()
+        self.store = InMemoryDocumentStore(embedding_similarity_function="cosine")
         self.ready = ready
         self.closed = False
 
@@ -52,9 +75,14 @@ class InMemoryStoreProvider(IDocumentStoreProvider):
         self.closed = True
 
 
-class InMemoryBM25RetrieverFactory(IRetrieverFactory):
-    def create_retriever(self, document_store: Any) -> InMemoryBM25Retriever:
-        return InMemoryBM25Retriever(document_store=document_store)
+class InMemoryEmbeddingRetrieverFactory(IRetrieverFactory):
+    """In-memory cosine retrieval: native score already is cosine similarity."""
+
+    def create_retriever(self, document_store: Any) -> InMemoryEmbeddingRetriever:
+        return InMemoryEmbeddingRetriever(document_store=document_store)
+
+    def to_cosine_similarity(self, raw_score: float) -> float:
+        return raw_score
 
 
 def make_container(store_provider: InMemoryStoreProvider | None = None) -> Container:
@@ -62,7 +90,9 @@ def make_container(store_provider: InMemoryStoreProvider | None = None) -> Conta
     embedder = FakeEmbedder()
     indexing = IndexingPipeline(document_store_provider=provider, embedder=embedder)
     search = SearchPipeline(
-        document_store_provider=provider, retriever_factory=InMemoryBM25RetrieverFactory()
+        document_store_provider=provider,
+        embedder=embedder,
+        retriever_factory=InMemoryEmbeddingRetrieverFactory(),
     )
     return Container(
         settings=Settings(),
@@ -71,7 +101,9 @@ def make_container(store_provider: InMemoryStoreProvider | None = None) -> Conta
         indexing_pipeline=indexing,
         search_pipeline=search,
         indexing_service=IndexingService(indexing_pipeline=indexing),
-        search_service=SearchService(search_pipeline=search),
+        search_service=SearchService(
+            search_pipeline=search, default_top_k=5, default_min_score=0.5
+        ),
     )
 
 
