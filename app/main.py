@@ -4,21 +4,19 @@ Loads precomputed embeddings on startup if available.
 """
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.scripts.load_embeddings import EmbeddingLoader
 from app.api import api_router
+from app.scripts.load_embeddings import EmbeddingLoader
 from app.services.indexing import IndexingService
-from app.services.search import SearchService
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -29,31 +27,35 @@ async def load_precomputed_embeddings():
     Prevents reindexing when Weaviate already contains documents.
     """
     embeddings_path = Path("data/embeddings/embeddings.parquet")
-    
-    if not embeddings_path.exists():
+
+    if not await asyncio.to_thread(embeddings_path.exists):
         logger.warning(f"Embeddings file not found: {embeddings_path}")
         logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
         return
-    
+
     try:
         indexing = IndexingService()
         count_result = await indexing.get_document_count()
         total_documents = count_result.get("document_count", 0)
-        
+
         if total_documents > 0:
-            logger.info(f"Index already has {total_documents} documents. Skipping precomputed embeddings load.")
+            logger.info(
+                f"Index already has {total_documents} documents. "
+                "Skipping precomputed embeddings load."
+            )
             return
-        
+
         logger.info("Loading precomputed embeddings...")
         loader = EmbeddingLoader()
         embeddings_data = loader.load_from_parquet("embeddings.parquet")
-        
+
         count = loader.index_precomputed_embeddings(embeddings_data)
         logger.info(f"Successfully indexed {count} precomputed embeddings.")
-        
+
     except Exception as e:
         logger.error(f"Error loading precomputed embeddings: {e}")
         logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,7 +82,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("Astros API Ready")
     logger.info("=" * 60)
-    
+
     yield
 
     logger.info("Shutting down Astros Semantic Search API...")
@@ -105,6 +107,7 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+
 @app.get("/", tags=["root"])
 async def root():
     """API root endpoint with basic information."""
@@ -120,6 +123,7 @@ async def root():
         },
     }
 
+
 @app.get("/ping", tags=["health"])
 async def ping():
     """Health check endpoint."""
@@ -132,11 +136,10 @@ async def health_check():
     Detailed health check with document count.
     """
     try:
-        
-        service = IndexingService()        
+        service = IndexingService()
 
         count_result = await service.get_document_count()
-        
+
         return {
             "status": "healthy",
             "api_version": "1.0.0",

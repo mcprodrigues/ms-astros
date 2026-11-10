@@ -3,9 +3,9 @@ Indexing pipeline for incremental document ingestion.
 Supports single document and batch uploads with embedding generation.
 """
 
-from functools import lru_cache
 import logging
-from typing import Dict, List, Optional
+from functools import lru_cache
+
 from haystack import Document, Pipeline
 from haystack.components.writers import DocumentWriter
 
@@ -27,8 +27,8 @@ class IndexingPipeline:
         self.pipeline = self._build_pipeline()
 
     def index_single_document(
-        self, content: str, metadata: Dict[str, any], doc_id: Optional[str] = None
-    ) -> Dict[str, any]:
+        self, content: str, metadata: dict[str, any], doc_id: str | None = None
+    ) -> dict[str, any]:
         """
         Index a single document with embedding generation.
         Use case: Uploading a single document via API.
@@ -57,9 +57,7 @@ class IndexingPipeline:
             result = self.pipeline.run({"writer": {"documents": [document]}})
             indexed_count = result["writer"]["documents_written"]
 
-            logger.info(
-                f"Document indexed successfully: {doc_id or 'auto-generated ID'}"
-            )
+            logger.info(f"Document indexed successfully: {doc_id or 'auto-generated ID'}")
 
             return {
                 "status": "success",
@@ -72,9 +70,7 @@ class IndexingPipeline:
             logger.error(f"Error indexing single document: {e}")
             raise
 
-    def index_batch_documents(
-        self, documents_data: List[Dict[str, any]]
-    ) -> Dict[str, any]:
+    def index_batch_documents(self, documents_data: list[dict[str, any]]) -> dict[str, any]:
         """
         Index multiple documents in batch with embedding generation.
         Use case: Uploading multiple documents via API.
@@ -195,7 +191,7 @@ class IndexingPipeline:
         return pipeline
 
 
-@lru_cache()
+@lru_cache
 def get_indexing_pipeline() -> IndexingPipeline:
     """
     Get a cached instance of the IndexingPipeline.

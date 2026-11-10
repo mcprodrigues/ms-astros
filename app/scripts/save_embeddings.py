@@ -5,15 +5,17 @@ Supports multiple formats: pickle, numpy, parquet.
 Usage: python scripts/save_embeddings.py
 """
 
-import pandas as pd
-from pathlib import Path
 import logging
-from typing import Dict, List, Any
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
 
 from app.providers.pipelines.components.embedder import EmbedderComponent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class EmbeddingSaver:
     """
@@ -25,7 +27,9 @@ class EmbeddingSaver:
         self.output_dir = Path("data/embeddings")
         self.output_dir.mkdir(exist_ok=True)
 
-    def generate_embeddings_from_csv(self, csv_path: str = "data/movies.csv") -> List[Dict[str, Any]]:
+    def generate_embeddings_from_csv(
+        self, csv_path: str = "data/movies.csv"
+    ) -> list[dict[str, Any]]:
         """
         Generate embeddings for all movies in CSV.
 
@@ -53,27 +57,33 @@ class EmbeddingSaver:
             content_text = ". ".join([c for c in content_parts if c])
 
             texts.append(content_text)
-            metadata_list.append({
-                "id": f"movie_{idx}",
-                "titulo": titulo,
-                "sinopse": sinopse,
-                "descricao": descricao,
-                "palavras_chave": palavras,
-                "diretor": diretor,
-            })
+            metadata_list.append(
+                {
+                    "id": f"movie_{idx}",
+                    "titulo": titulo,
+                    "sinopse": sinopse,
+                    "descricao": descricao,
+                    "palavras_chave": palavras,
+                    "diretor": diretor,
+                }
+            )
 
         logger.info(f"Generating embeddings for {len(texts)} documents...")
         embeddings = self.embedder.encode_batch(texts)
 
         # Combine everything
         embeddings_data = []
-        for i, (text, embedding, metadata) in enumerate(zip(texts, embeddings, metadata_list)):
-            embeddings_data.append({
-                "id": metadata["id"],
-                "content": text,
-                "embedding": embedding,
-                "metadata": metadata
-            })
+        for i, (text, embedding, metadata) in enumerate(
+            zip(texts, embeddings, metadata_list, strict=True)
+        ):
+            embeddings_data.append(
+                {
+                    "id": metadata["id"],
+                    "content": text,
+                    "embedding": embedding,
+                    "metadata": metadata,
+                }
+            )
 
             if (i + 1) % 100 == 0:
                 logger.info(f"Processed {i + 1}/{len(texts)} embeddings")
@@ -81,7 +91,9 @@ class EmbeddingSaver:
         logger.info(f"Generated {len(embeddings_data)} embeddings")
         return embeddings_data
 
-    def save_as_parquet(self, embeddings_data: List[Dict[str, Any]], filename: str = "embeddings.parquet"):
+    def save_as_parquet(
+        self, embeddings_data: list[dict[str, Any]], filename: str = "embeddings.parquet"
+    ):
         """
         Save embeddings as parquet (structured, cross-platform).
         Best for: Data pipelines, analytics, cross-platform compatibility.
@@ -99,7 +111,7 @@ class EmbeddingSaver:
                 "id": item["id"],
                 "content": item["content"],
                 "embedding": item["embedding"].tolist(),  # Convert to list for parquet
-                **item["metadata"]
+                **item["metadata"],
             }
             records.append(record)
 
@@ -110,6 +122,7 @@ class EmbeddingSaver:
 
         file_size = output_path.stat().st_size / (1024 * 1024)
         logger.info(f"Saved {len(embeddings_data)} embeddings as parquet ({file_size:.2f} MB)")
+
 
 def main():
     """Main execution."""

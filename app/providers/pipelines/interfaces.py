@@ -4,7 +4,8 @@ Defines abstract base classes (ABCs) to enforce consistent implementations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 import numpy as np
 from haystack import Document
 
@@ -23,7 +24,7 @@ class IEmbedder(ABC):
         pass
 
     @abstractmethod
-    def encode_batch(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
+    def encode_batch(self, texts: list[str], batch_size: int = 32) -> list[np.ndarray]:
         """
         Generate embeddings for multiple texts in a batch.
         """
@@ -73,17 +74,15 @@ class IIndexingPipeline(ABC):
 
     @abstractmethod
     def index_single_document(
-        self, content: str, metadata: Dict[str, Any], doc_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, content: str, metadata: dict[str, Any], doc_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Index a single document into the vector database.
         """
         pass
 
     @abstractmethod
-    def index_batch_documents(
-        self, documents_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def index_batch_documents(self, documents_data: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Index multiple documents in batch.
         """
@@ -117,7 +116,7 @@ class ISearchPipeline(ABC):
     """
 
     @abstractmethod
-    def search(self, query: str, top_k: int = 10) -> List[Document]:
+    def search(self, query: str, top_k: int = 10) -> list[Document]:
         """
         Perform a semantic search query and return retrieved documents.
         """

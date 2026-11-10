@@ -4,13 +4,14 @@ Script to load embeddings from saved files and index them.
 Usage: python scripts/load_embeddings.py
 """
 
-import numpy as np
-import pandas as pd
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
+import numpy as np
+import pandas as pd
 from haystack import Document
+
 from app.providers.pipelines.indexing import IndexingPipeline
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,7 @@ class EmbeddingLoader:
         self.indexing_pipeline = IndexingPipeline()
         self.embeddings_dir = Path("data/embeddings")
 
-    def load_from_parquet(self, filename: str = "embeddings.parquet") -> List[Dict[str, Any]]:
+    def load_from_parquet(self, filename: str = "embeddings.parquet") -> list[dict[str, Any]]:
         """
         Load embeddings from parquet file.
 
@@ -46,23 +47,25 @@ class EmbeddingLoader:
 
         embeddings_data = []
         for _, row in df.iterrows():
-            embeddings_data.append({
-                "id": row["id"],
-                "content": row["content"],
-                "embedding": np.array(row["embedding"]),  # Convert back to numpy array
-                "metadata": {
-                    "titulo": row.get("titulo", ""),
-                    "sinopse": row.get("sinopse", ""),
-                    "descricao": row.get("descricao", ""),
-                    "palavras_chave": row.get("palavras_chave", ""),
-                    "diretor": row.get("diretor", ""),
+            embeddings_data.append(
+                {
+                    "id": row["id"],
+                    "content": row["content"],
+                    "embedding": np.array(row["embedding"]),  # Convert back to numpy array
+                    "metadata": {
+                        "titulo": row.get("titulo", ""),
+                        "sinopse": row.get("sinopse", ""),
+                        "descricao": row.get("descricao", ""),
+                        "palavras_chave": row.get("palavras_chave", ""),
+                        "diretor": row.get("diretor", ""),
+                    },
                 }
-            })
+            )
 
         logger.info(f"Loaded {len(embeddings_data)} embeddings from parquet")
         return embeddings_data
 
-    def index_precomputed_embeddings(self, embeddings_data: List[Dict[str, Any]]) -> int:
+    def index_precomputed_embeddings(self, embeddings_data: list[dict[str, Any]]) -> int:
         """
         Index with precomputed embeddings (bypassing embedding generation).
 
@@ -80,8 +83,10 @@ class EmbeddingLoader:
             doc = Document(
                 id=item["id"],
                 content=item["content"],
-                embedding=item["embedding"].tolist() if isinstance(item["embedding"], np.ndarray) else item["embedding"],
-                meta=item["metadata"]
+                embedding=item["embedding"].tolist()
+                if isinstance(item["embedding"], np.ndarray)
+                else item["embedding"],
+                meta=item["metadata"],
             )
             documents.append(doc)
 

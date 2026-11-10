@@ -13,7 +13,7 @@ Portuguese text matters more than raw latency.
 - Python 3.13, managed with `uv`; `pyproject.toml` is the single source of
   truth for dependencies (pinned versions)
 - FastAPI + Pydantic v2 (`pydantic-settings` for configuration)
-- Haystack 2.x pipelines; Weaviate as document store (`weaviate-haystack`)
+- Haystack 3.x pipelines; Weaviate (>= 1.27) as document store (`weaviate-haystack`)
 - sentence-transformers for embeddings; pandas + pyarrow for batch data
 - Docker + docker-compose for the runtime environment (API + Weaviate)
 

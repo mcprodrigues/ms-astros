@@ -4,8 +4,8 @@ Provides endpoints for single uploads, batch operations, and management.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Form, Depends
-from typing import Optional
+
+from fastapi import APIRouter, Depends, Form, HTTPException
 
 from app.schemas.movie import MovieUpload
 from app.services.indexing import get_indexing_service
@@ -35,7 +35,7 @@ async def ingest_single_movie(
         )
     except Exception as e:
         logger.error(f"Single movie ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/movie/form")
@@ -46,7 +46,7 @@ async def ingest_movie_form(
     descricao: str = Form(""),
     palavras_chave: str = Form(""),
     diretor: str = Form(""),
-    movie_id: Optional[str] = Form(None),
+    movie_id: str | None = Form(None),
 ):
     """
     Ingest a single movie via HTML form or multipart/form-data.
@@ -62,7 +62,7 @@ async def ingest_movie_form(
         )
     except Exception as e:
         logger.error(f"Form movie ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/batch/csv")
@@ -77,7 +77,7 @@ async def ingest_batch_from_csv(
         return await service.ingest_movies_from_csv(csv_path)
     except Exception as e:
         logger.error(f"Batch CSV ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/movie/{movie_id}")
@@ -92,7 +92,7 @@ async def delete_movie(
         return await service.delete_movie(movie_id)
     except Exception as e:
         logger.error(f"Delete movie error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/count")
@@ -106,7 +106,7 @@ async def get_document_count(
         return await service.get_document_count()
     except Exception as e:
         logger.error(f"Get count error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/reset")
@@ -125,4 +125,4 @@ async def reset_index(
         }
     except Exception as e:
         logger.error(f"Reset index error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

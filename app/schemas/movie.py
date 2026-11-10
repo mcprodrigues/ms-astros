@@ -3,7 +3,6 @@ Movie data schemas for requests and responses.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class MovieUpload(BaseModel):
@@ -17,7 +16,7 @@ class MovieUpload(BaseModel):
     descricao: str = Field(default="", description="Full movie description")
     palavras_chave: str = Field(default="", description="Keywords or tags")
     diretor: str = Field(default="", description="Director name")
-    movie_id: Optional[str] = Field(
+    movie_id: str | None = Field(
         default=None, description="Custom movie ID (auto-generated if not provided)"
     )
 

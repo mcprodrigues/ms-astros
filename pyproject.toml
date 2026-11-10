@@ -1,7 +1,57 @@
 [project]
-name = "fastapi-boilerplate"
-version = "0.1.0"
-description = "Add your description here"
+name = "astros"
+version = "0.2.0"
+description = "Semantic search microservice over a film catalog for cinema studies"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi==0.162.2",
+    "haystack-ai==3.5.0",
+    "pandas==3.1.1",
+    "pyarrow==26.0.1",
+    "pydantic==2.14.3",
+    "pydantic-settings==2.16.2",
+    "python-multipart==0.0.33",
+    "sentence-transformers==6.2.0",
+    "torch==2.15.0",
+    "uvicorn[standard]==0.54.0",
+    "weaviate-haystack==8.0.1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "httpx==0.28.1",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1.post1",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.File", "fastapi.params.Depends"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["integration: requires a running Weaviate instance"]
+addopts = "-m 'not integration'"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/scripts/*"]

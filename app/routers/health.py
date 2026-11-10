@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
 import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.services.indexing import get_indexing_service
 from app.services.interfaces import IIndexingService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
 
 @router.get(
     "/health",
@@ -16,7 +18,7 @@ router = APIRouter()
 )
 async def health_check(
     service: IIndexingService = Depends(get_indexing_service),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Health check endpoint."""
     try:
         doc_count = await service.get_document_count()
@@ -28,6 +30,5 @@ async def health_check(
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service unhealthy"
-        )
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service unhealthy"
+        ) from e

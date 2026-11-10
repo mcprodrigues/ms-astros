@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
 from app.settings import settings
@@ -14,11 +15,11 @@ class DocumentStoreProvider:
     """
 
     _instance: Optional["DocumentStoreProvider"] = None
-    _document_store: Optional[WeaviateDocumentStore] = None
+    _document_store: WeaviateDocumentStore | None = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(DocumentStoreProvider, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
