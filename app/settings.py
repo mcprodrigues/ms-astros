@@ -25,4 +25,5 @@ class Settings(BaseSettings):
 
     # Search
     DEFAULT_TOP_K: int = 5
-    MIN_SCORE_THRESHOLD: float = 0.5
+    # Provisional, from sampled real queries; recalibrate on the golden set.
+    MIN_SCORE_THRESHOLD: float = 0.42

@@ -42,6 +42,7 @@ def create_app(
             await asyncio.to_thread(
                 load_precomputed_embeddings_if_empty,
                 container.indexing_pipeline,
+                container.embedder,
                 Path(settings.EMBEDDINGS_PATH),
             )
         logger.info("Astros API ready")

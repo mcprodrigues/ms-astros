@@ -9,10 +9,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 from app.domain.catalog_io import read_catalog_csv
 from app.domain.movie import Movie
+from app.providers.embeddings_file import fingerprint_of, write_embeddings_parquet
 from app.providers.pipelines.interfaces import IEmbedder
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ class EmbeddingSaver:
         self, records: list[dict[str, Any]], filename: str = "embeddings.parquet"
     ) -> Path:
         output_path = self.output_dir / filename
-        pd.DataFrame(records).to_parquet(output_path, compression="snappy", index=False)
+        write_embeddings_parquet(records, output_path, fingerprint_of(self.embedder))
         logger.info("Saved %d embeddings to %s", len(records), output_path)
         return output_path
 
