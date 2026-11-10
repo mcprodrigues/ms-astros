@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   weaviate:
-    image: semitechnologies/weaviate:1.23.7
+    image: cr.weaviate.io/semitechnologies/weaviate:1.34.0
     container_name: astros-weaviate
     restart: unless-stopped
     ports:
@@ -42,7 +40,7 @@ services:
       weaviate:
         condition: service_healthy  # Wait for Weaviate to be ready
     volumes:
-      - ./data/embeddings:/app/data/embeddings
+      - ./data/embeddings:/app/data/embeddings:ro
     networks:
       - astros-network
 
