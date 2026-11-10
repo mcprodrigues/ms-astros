@@ -4,9 +4,10 @@ Uses sentence-transformers for multilingual semantic embeddings.
 """
 
 import logging
-from typing import List, Optional
-from sentence_transformers import SentenceTransformer
+from typing import Optional
+
 import numpy as np
+from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +19,12 @@ class EmbedderComponent:
     """
 
     _instance: Optional["EmbedderComponent"] = None
-    _model: Optional[SentenceTransformer] = None
+    _model: SentenceTransformer | None = None
     _model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(EmbedderComponent, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -47,7 +48,7 @@ class EmbedderComponent:
             logger.error(f"Error encoding text: {e}")
             raise
 
-    def encode_batch(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
+    def encode_batch(self, texts: list[str], batch_size: int = 32) -> list[np.ndarray]:
         """
         Generate embeddings for multiple texts in batch.
         More efficient than encoding one by one.
@@ -60,9 +61,7 @@ class EmbedderComponent:
           List[np.ndarray]: List of generated embedding vectors
         """
         try:
-            logger.info(
-                f"Encoding batch of {len(texts)} texts with batch size {batch_size}"
-            )
+            logger.info(f"Encoding batch of {len(texts)} texts with batch size {batch_size}")
             embeddings = self._model.encode(
                 texts,
                 batch_size=batch_size,
@@ -83,8 +82,7 @@ class EmbedderComponent:
           int: Dimension of the embeddings
         """
         return self._model.get_sentence_embedding_dimension()
-    
-    
+
     def _load_model(self) -> None:
         """
         Load the sentence-transformers model.

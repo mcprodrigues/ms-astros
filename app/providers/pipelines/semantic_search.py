@@ -1,11 +1,10 @@
-from functools import lru_cache
 import logging
-from typing import List
+from functools import lru_cache
+
 from haystack import Document, Pipeline
 
 from app.providers.pipelines.components.retriever import RetrieverComponent
 from app.providers.pipelines.components.store import DocumentStoreProvider
-
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class SearchPipeline:
         self.document_store_provider = document_store_provider
         self.pipeline = self._build_pipeline()
 
-    def search(self, query: str, top_k: int = 10) -> List[Document]:
+    def search(self, query: str, top_k: int = 10) -> list[Document]:
         """
         Execute semantic search using the pipeline.
 
@@ -60,7 +59,7 @@ class SearchPipeline:
         return pipeline
 
 
-@lru_cache()
+@lru_cache
 def get_search_pipeline() -> SearchPipeline:
     """
     Get a cached instance of the SearchPipeline.

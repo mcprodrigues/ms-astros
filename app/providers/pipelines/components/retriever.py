@@ -1,4 +1,5 @@
 import logging
+
 from haystack_integrations.components.retrievers.weaviate import WeaviateBM25Retriever
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 

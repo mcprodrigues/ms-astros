@@ -1,7 +1,8 @@
-from functools import lru_cache
 import logging
+from functools import lru_cache
+from typing import Annotated
+
 from fastapi.params import Depends
-from typing_extensions import Annotated
 
 from app.providers.pipelines.semantic_search import SearchPipeline, get_search_pipeline
 from app.schemas.movie import MovieResponse
@@ -56,7 +57,7 @@ class SearchService(ISearchService):
             raise
 
 
-@lru_cache()
+@lru_cache
 def get_search_service(
     pipeline: Annotated[SearchPipeline, Depends(get_search_pipeline)],
 ) -> ISearchService:

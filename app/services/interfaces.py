@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
+
 from app.schemas.search import SearchRequest, SearchResponse
-from app.schemas.movie import MovieResponse
 
 
 class ISearchService(ABC):
@@ -16,9 +16,9 @@ class ISearchService(ABC):
         Execute semantic search using search pipeline.
         """
         pass
-    
-class IIndexingService(ABC):
 
+
+class IIndexingService(ABC):
     @abstractmethod
     async def ingest_single_movie(
         self,
@@ -28,30 +28,28 @@ class IIndexingService(ABC):
         palavras_chave: str = "",
         diretor: str = "",
         movie_id: str = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Ingest a single movie document incrementally.
         """
         pass
 
     @abstractmethod
-    async def ingest_movies_from_csv(
-        self, csv_path: str = "data/movies.csv"
-    ) -> Dict[str, Any]:
+    async def ingest_movies_from_csv(self, csv_path: str = "data/movies.csv") -> dict[str, Any]:
         """
         Ingest movies in batch from CSV file.
         """
         pass
 
     @abstractmethod
-    async def delete_movie(self, movie_id: str) -> Dict[str, Any]:
+    async def delete_movie(self, movie_id: str) -> dict[str, Any]:
         """
         Delete a movie document by its ID.
         """
         pass
 
     @abstractmethod
-    async def get_document_count(self) -> Dict[str, Any]:
+    async def get_document_count(self) -> dict[str, Any]:
         """
         Get the total count of documents in the index.
         """

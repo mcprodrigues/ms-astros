@@ -1,10 +1,11 @@
-from functools import lru_cache
+import asyncio
 import logging
+from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Dict, Any, Optional
+from typing import Annotated, Any
 
-from fastapi import Depends
 import pandas as pd
+from fastapi import Depends
 
 from app.providers.pipelines.indexing import IndexingPipeline, get_indexing_pipeline
 from app.providers.pipelines.interfaces import IIndexingPipeline
@@ -32,8 +33,8 @@ class IndexingService(IIndexingService):
         descricao: str = "",
         palavras_chave: str = "",
         diretor: str = "",
-        movie_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        movie_id: str | None = None,
+    ) -> dict[str, Any]:
         try:
             logger.info(f"Ingesting single movie: {titulo}")
 
@@ -61,13 +62,11 @@ class IndexingService(IIndexingService):
             logger.error(f"Single ingestion failed: {e}")
             raise
 
-    async def ingest_movies_from_csv(
-        self, csv_path: str = "data/movies.csv"
-    ) -> Dict[str, Any]:
+    async def ingest_movies_from_csv(self, csv_path: str = "data/movies.csv") -> dict[str, Any]:
         try:
             logger.info(f"Starting batch CSV ingestion: {csv_path}")
 
-            if not Path(csv_path).exists():
+            if not await asyncio.to_thread(Path(csv_path).exists):
                 raise FileNotFoundError(f"CSV not found: {csv_path}")
 
             df = pd.read_csv(csv_path)
@@ -75,9 +74,7 @@ class IndexingService(IIndexingService):
 
             for idx, row in df.iterrows():
                 titulo = str(row.get("Título Original", "")).strip()
-                direcao = str(
-                    row.get("Direção / Um filme de / Uma obra de", "")
-                ).strip()
+                direcao = str(row.get("Direção / Um filme de / Uma obra de", "")).strip()
                 sinopse = str(row.get("Sinopse", "")).strip()
                 descricao = str(row.get("Descrição Completa", "")).strip()
                 palavras = str(row.get("Palavras-Chave", "")).strip()
@@ -106,7 +103,7 @@ class IndexingService(IIndexingService):
             logger.error(f"CSV ingestion failed: {e}")
             raise
 
-    async def delete_movie(self, movie_id: str) -> Dict[str, Any]:
+    async def delete_movie(self, movie_id: str) -> dict[str, Any]:
         try:
             deleted = self.indexing_pipeline.delete_document(movie_id)
             return {
@@ -118,7 +115,7 @@ class IndexingService(IIndexingService):
             logger.error(f"Delete failed: {e}")
             raise
 
-    async def get_document_count(self) -> Dict[str, Any]:
+    async def get_document_count(self) -> dict[str, Any]:
         try:
             count = self.indexing_pipeline.count_documents()
             return {"status": "success", "document_count": count}
@@ -127,9 +124,8 @@ class IndexingService(IIndexingService):
             raise
 
 
-@lru_cache()
+@lru_cache
 def get_indexing_service(
     pipeline: Annotated[IndexingPipeline, Depends(get_indexing_pipeline)],
 ) -> IIndexingService:
     return IndexingService(indexing_pipeline=pipeline)
-
