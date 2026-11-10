@@ -1,13 +1,10 @@
 import asyncio
 import logging
-from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
 import pandas as pd
-from fastapi import Depends
 
-from app.providers.pipelines.indexing import IndexingPipeline, get_indexing_pipeline
 from app.providers.pipelines.interfaces import IIndexingPipeline
 from app.services.interfaces import IIndexingService
 
@@ -62,7 +59,7 @@ class IndexingService(IIndexingService):
             logger.error(f"Single ingestion failed: {e}")
             raise
 
-    async def ingest_movies_from_csv(self, csv_path: str = "data/movies.csv") -> dict[str, Any]:
+    async def ingest_movies_from_csv(self, csv_path: str) -> dict[str, Any]:
         try:
             logger.info(f"Starting batch CSV ingestion: {csv_path}")
 
@@ -123,9 +120,9 @@ class IndexingService(IIndexingService):
             logger.error(f"Count failed: {e}")
             raise
 
+    async def reset_index(self) -> dict[str, Any]:
+        self.indexing_pipeline.reset_index()
+        return {"status": "success", "message": "Index reset complete. All documents deleted."}
 
-@lru_cache
-def get_indexing_service(
-    pipeline: Annotated[IndexingPipeline, Depends(get_indexing_pipeline)],
-) -> IIndexingService:
-    return IndexingService(indexing_pipeline=pipeline)
+    async def is_ready(self) -> bool:
+        return self.indexing_pipeline.is_ready()

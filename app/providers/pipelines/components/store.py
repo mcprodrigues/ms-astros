@@ -1,92 +1,84 @@
 import logging
-from typing import Optional
+import time
 
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
 
-from app.settings import settings
+from app.providers.pipelines.interfaces import IDocumentStoreProvider
 
 logger = logging.getLogger(__name__)
 
+SEARCHABLE_TEXT_PROPERTIES = (
+    "content",
+    "titulo",
+    "sinopse",
+    "descricao",
+    "palavras_chave",
+    "diretor",
+)
 
-class DocumentStoreProvider:
-    """
-    Document store provider implementing singleton pattern.
-    Manages single instance of Weaviate document store connection.
-    """
 
-    _instance: Optional["DocumentStoreProvider"] = None
-    _document_store: WeaviateDocumentStore | None = None
+class StoreUnavailableError(RuntimeError):
+    """Raised when the document store cannot be reached."""
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
-    def __init__(self):
-        if self._document_store is None:
-            self._initialize_document_store()
+class DocumentStoreProvider(IDocumentStoreProvider):
+    """Owns a single WeaviateDocumentStore connection."""
 
-    def _initialize_document_store(self) -> None:
-        """
-        Initialize Weaviate document store with collection settings.
-        Configures schema with searchable text properties.
-        """
-        try:
-            logger.info(f"Connecting to Weaviate at {settings.WEAVIATE_URL}")
-
-            self._document_store = WeaviateDocumentStore(
-                url=settings.WEAVIATE_URL,
-                collection_settings={
-                    "class": settings.WEAVIATE_INDEX_NAME,
-                    "vectorizer": "none",
-                    "properties": [
-                        {
-                            "name": "content",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                        {
-                            "name": "titulo",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                        {
-                            "name": "sinopse",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                        {
-                            "name": "descricao",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                        {
-                            "name": "palavras_chave",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                        {
-                            "name": "diretor",
-                            "dataType": ["text"],
-                            "indexSearchable": True,
-                        },
-                    ],
-                },
-            )
-
-            logger.info("Weaviate document store initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize Weaviate document store: {e}")
-            raise
+    def __init__(
+        self,
+        url: str,
+        index_name: str,
+        grpc_port: int = 50051,
+        connect_attempts: int = 10,
+        backoff_seconds: float = 1.0,
+    ):
+        self._url = url
+        self._connect_attempts = connect_attempts
+        self._backoff_seconds = backoff_seconds
+        self._document_store = WeaviateDocumentStore(
+            url=url,
+            grpc_port=grpc_port,
+            collection_settings={
+                "class": index_name,
+                "vectorizer": "none",
+                "properties": [
+                    {"name": name, "dataType": ["text"], "indexSearchable": True}
+                    for name in SEARCHABLE_TEXT_PROPERTIES
+                ],
+            },
+        )
 
     def get_document_store(self) -> WeaviateDocumentStore:
-        """
-        Get the document store instance.
-
-        Returns:
-            WeaviateDocumentStore: Initialized document store
-        """
-        if self._document_store is None:
-            self._initialize_document_store()
         return self._document_store
+
+    def is_ready(self) -> bool:
+        try:
+            return bool(self._document_store.client.is_ready())
+        except Exception as e:
+            logger.warning("Weaviate readiness check failed: %s", e)
+            return False
+
+    def wait_until_ready(self) -> None:
+        delay = self._backoff_seconds
+        for attempt in range(1, self._connect_attempts + 1):
+            if self.is_ready():
+                logger.info("Connected to Weaviate at %s", self._url)
+                return
+            if attempt < self._connect_attempts:
+                logger.info(
+                    "Weaviate not ready (attempt %d/%d); retrying in %.1fs",
+                    attempt,
+                    self._connect_attempts,
+                    delay,
+                )
+                time.sleep(delay)
+                delay = min(delay * 2, 30.0)
+        raise StoreUnavailableError(
+            f"Weaviate at {self._url} not ready after {self._connect_attempts} attempts"
+        )
+
+    def close(self) -> None:
+        try:
+            self._document_store.close()
+        except Exception as e:
+            logger.warning("Error closing Weaviate connection: %s", e)

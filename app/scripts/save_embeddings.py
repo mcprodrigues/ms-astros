@@ -1,8 +1,7 @@
 """
-Script to generate and save embeddings to disk.
-Supports multiple formats: pickle, numpy, parquet.
+Generate embeddings for the catalog CSV and save them as parquet.
 
-Usage: python scripts/save_embeddings.py
+Usage: uv run python -m app.scripts.save_embeddings
 """
 
 import logging
@@ -11,9 +10,8 @@ from typing import Any
 
 import pandas as pd
 
-from app.providers.pipelines.components.embedder import EmbedderComponent
+from app.providers.pipelines.interfaces import IEmbedder
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -22,10 +20,10 @@ class EmbeddingSaver:
     Generate embeddings from CSV and save to multiple formats.
     """
 
-    def __init__(self):
-        self.embedder = EmbedderComponent()
-        self.output_dir = Path("data/embeddings")
-        self.output_dir.mkdir(exist_ok=True)
+    def __init__(self, embedder: IEmbedder, output_dir: Path):
+        self.embedder = embedder
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_embeddings_from_csv(
         self, csv_path: str = "data/movies.csv"
@@ -124,11 +122,16 @@ class EmbeddingSaver:
         logger.info(f"Saved {len(embeddings_data)} embeddings as parquet ({file_size:.2f} MB)")
 
 
-def main():
-    """Main execution."""
-    saver = EmbeddingSaver()
-    embeddings_data = saver.generate_embeddings_from_csv()
-    saver.save_as_parquet(embeddings_data)
+def main() -> None:
+    from app.dependencies import build_embedder
+    from app.settings import Settings
+
+    logging.basicConfig(level=logging.INFO)
+    settings = Settings()
+    output_path = Path(settings.EMBEDDINGS_PATH)
+    saver = EmbeddingSaver(embedder=build_embedder(settings), output_dir=output_path.parent)
+    embeddings_data = saver.generate_embeddings_from_csv(settings.CSV_FILE_PATH)
+    saver.save_as_parquet(embeddings_data, filename=output_path.name)
 
 
 if __name__ == "__main__":

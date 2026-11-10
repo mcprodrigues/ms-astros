@@ -1,10 +1,6 @@
 import logging
-from functools import lru_cache
-from typing import Annotated
 
-from fastapi.params import Depends
-
-from app.providers.pipelines.semantic_search import SearchPipeline, get_search_pipeline
+from app.providers.pipelines.interfaces import ISearchPipeline
 from app.schemas.movie import MovieResponse
 from app.schemas.search import SearchRequest, SearchResponse
 from app.services.interfaces import ISearchService
@@ -17,8 +13,8 @@ class SearchService(ISearchService):
     Service responsible only for semantic search operations.
     """
 
-    def __init__(self, search_pipeline: SearchPipeline = None):
-        self.search_pipeline = search_pipeline or SearchPipeline()
+    def __init__(self, search_pipeline: ISearchPipeline):
+        self.search_pipeline = search_pipeline
 
     async def semantic_search(self, search_request: SearchRequest) -> SearchResponse:
         try:
@@ -55,10 +51,3 @@ class SearchService(ISearchService):
         except Exception as e:
             logger.error(f"Search error: {e}")
             raise
-
-
-@lru_cache
-def get_search_service(
-    pipeline: Annotated[SearchPipeline, Depends(get_search_pipeline)],
-) -> ISearchService:
-    return SearchService(search_pipeline=pipeline)
