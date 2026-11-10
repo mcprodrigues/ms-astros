@@ -1,128 +1,111 @@
-"""
-Index router for incremental document ingestion.
-Provides endpoints for single uploads, batch operations, and management.
-"""
+"""Index management: ingestion, deletion, counting, reset."""
 
-import logging
-from fastapi import APIRouter, HTTPException, Form, Depends
-from typing import Optional
+from typing import Any
 
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+
+from app.dependencies import get_indexing_service, get_settings
 from app.schemas.movie import MovieUpload
-from app.services.indexing import get_indexing_service
+from app.security import require_api_key
 from app.services.interfaces import IIndexingService
-
-logger = logging.getLogger(__name__)
+from app.settings import Settings
 
 router = APIRouter()
 
+CSV_CONTENT_TYPES = {"text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"}
 
-@router.post("/movie")
+
+@router.post("/movie", dependencies=[Depends(require_api_key)])
 async def ingest_single_movie(
     movie: MovieUpload,
     service: IIndexingService = Depends(get_indexing_service),
-):
-    """
-    Ingest a single movie document incrementally.
-    """
-    try:
-        return await service.ingest_single_movie(
-            titulo=movie.titulo,
-            sinopse=movie.sinopse,
-            descricao=movie.descricao,
-            palavras_chave=movie.palavras_chave,
-            diretor=movie.diretor,
-            movie_id=movie.movie_id,
-        )
-    except Exception as e:
-        logger.error(f"Single movie ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+) -> dict[str, Any]:
+    """Ingest (or overwrite) a single movie."""
+    return await service.ingest_single_movie(
+        titulo=movie.titulo,
+        sinopse=movie.sinopse,
+        descricao=movie.descricao,
+        palavras_chave=movie.palavras_chave,
+        diretor=movie.diretor,
+        movie_id=movie.movie_id,
+        ano=movie.ano,
+        tema=movie.tema,
+        tags=movie.tags,
+    )
 
 
-@router.post("/movie/form")
+@router.post("/movie/form", dependencies=[Depends(require_api_key)])
 async def ingest_movie_form(
     service: IIndexingService = Depends(get_indexing_service),
-    titulo: str = Form(...),
+    titulo: str = Form(..., min_length=1),
     sinopse: str = Form(""),
     descricao: str = Form(""),
     palavras_chave: str = Form(""),
+    tema: str = Form(""),
+    tags: str = Form(""),
     diretor: str = Form(""),
-    movie_id: Optional[str] = Form(None),
-):
-    """
-    Ingest a single movie via HTML form or multipart/form-data.
-    """
-    try:
-        return await service.ingest_single_movie(
-            titulo=titulo,
-            sinopse=sinopse,
-            descricao=descricao,
-            palavras_chave=palavras_chave,
-            diretor=diretor,
-            movie_id=movie_id,
-        )
-    except Exception as e:
-        logger.error(f"Form movie ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    movie_id: str | None = Form(None),
+    ano: int | None = Form(None, ge=1880, le=2100),
+) -> dict[str, Any]:
+    """Ingest a single movie via HTML form or multipart/form-data."""
+    return await service.ingest_single_movie(
+        titulo=titulo,
+        sinopse=sinopse,
+        descricao=descricao,
+        palavras_chave=palavras_chave,
+        diretor=diretor,
+        movie_id=movie_id,
+        ano=ano,
+        tema=tema,
+        tags=tags,
+    )
 
 
-@router.post("/batch/csv")
+@router.post("/batch/csv", dependencies=[Depends(require_api_key)])
 async def ingest_batch_from_csv(
+    file: UploadFile = File(..., description="Catalog CSV (UTF-8)"),
     service: IIndexingService = Depends(get_indexing_service),
-    csv_path: str = "data/movies.csv",
-):
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
     """
-    Ingest multiple movies in batch from CSV file.
+    Ingest an uploaded catalog CSV. Returns inserted/updated counts and the
+    duplicate and invalid rows that were skipped, with their line numbers.
     """
-    try:
-        return await service.ingest_movies_from_csv(csv_path)
-    except Exception as e:
-        logger.error(f"Batch CSV ingestion error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    if not (file.filename or "").lower().endswith(".csv") or (
+        file.content_type and file.content_type not in CSV_CONTENT_TYPES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Upload a .csv file"
+        )
+    data = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+    if len(data) > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"CSV larger than {settings.MAX_UPLOAD_BYTES} bytes",
+        )
+    return await service.ingest_catalog_csv(data)
 
 
-@router.delete("/movie/{movie_id}")
+@router.delete("/movie/{movie_id}", dependencies=[Depends(require_api_key)])
 async def delete_movie(
     movie_id: str,
     service: IIndexingService = Depends(get_indexing_service),
-):
-    """
-    Delete a movie document by ID.
-    """
-    try:
-        return await service.delete_movie(movie_id)
-    except Exception as e:
-        logger.error(f"Delete movie error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+) -> dict[str, Any]:
+    """Delete a movie by ID; 404 when it does not exist."""
+    return await service.delete_movie(movie_id)
 
 
 @router.get("/count")
 async def get_document_count(
     service: IIndexingService = Depends(get_indexing_service),
-):
-    """
-    Get total count of indexed documents.
-    """
-    try:
-        return await service.get_document_count()
-    except Exception as e:
-        logger.error(f"Get count error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+) -> dict[str, Any]:
+    """Total number of indexed movies."""
+    return await service.get_document_count()
 
 
-@router.post("/reset")
+@router.post("/reset", dependencies=[Depends(require_api_key)])
 async def reset_index(
     service: IIndexingService = Depends(get_indexing_service),
-):
-    """
-    Reset the entire index (dangerous).
-    """
-    try:
-        service.indexing_pipeline.reset_index()
-
-        return {
-            "status": "success",
-            "message": "Index reset complete. All documents deleted.",
-        }
-    except Exception as e:
-        logger.error(f"Reset index error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+) -> dict[str, Any]:
+    """Delete every movie in the index (destructive)."""
+    return await service.reset_index()

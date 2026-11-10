@@ -1,72 +1,50 @@
-from functools import lru_cache
 import logging
-from typing import List
+from dataclasses import replace
+
 from haystack import Document, Pipeline
 
-from app.providers.pipelines.components.retriever import RetrieverComponent
-from app.providers.pipelines.components.store import DocumentStoreProvider
-
+from app.providers.pipelines.interfaces import (
+    IDocumentStoreProvider,
+    IEmbedder,
+    IRetrieverFactory,
+    ISearchPipeline,
+)
+from app.providers.pipelines.store_guard import call_store
 
 logger = logging.getLogger(__name__)
 
 
-class SearchPipeline:
-    """
-    Search pipeline for semantic retrieval.
-    Uses Haystack Pipeline to orchestrate BM25 search.
-    """
+class SearchPipeline(ISearchPipeline):
+    """Embeds the query with the same model used at indexing time, then runs vector search."""
 
-    def __init__(self, document_store_provider: DocumentStoreProvider):
+    def __init__(
+        self,
+        document_store_provider: IDocumentStoreProvider,
+        embedder: IEmbedder,
+        retriever_factory: IRetrieverFactory,
+    ):
         self.document_store_provider = document_store_provider
+        self.embedder = embedder
+        self.retriever_factory = retriever_factory
         self.pipeline = self._build_pipeline()
 
-    def search(self, query: str, top_k: int = 10) -> List[Document]:
-        """
-        Execute semantic search using the pipeline.
-
-        Args:
-            query: Search query string
-            top_k: Maximum number of results to return
-
-        Returns:
-            List[Document]: Retrieved documents with scores
-        """
-        try:
-            result = self.pipeline.run({"retriever": {"query": query, "top_k": top_k}})
-
-            documents = result["retriever"]["documents"]
-            logger.info(f"Search returned {len(documents)} documents")
-            return documents
-
-        except Exception as e:
-            logger.error(f"Error executing search: {e}")
-            raise
+    def search(self, query: str, top_k: int = 10) -> list[Document]:
+        query_embedding = self.embedder.encode(query).tolist()
+        result = call_store(
+            self.document_store_provider,
+            lambda: self.pipeline.run(
+                {"retriever": {"query_embedding": query_embedding, "top_k": top_k}}
+            ),
+        )
+        documents = [
+            replace(doc, score=self.retriever_factory.to_cosine_similarity(doc.score))
+            for doc in result["retriever"]["documents"]
+        ]
+        logger.info("Search returned %d documents", len(documents))
+        return documents
 
     def _build_pipeline(self) -> Pipeline:
-        """
-        Build the search pipeline with BM25 retriever component.
-
-        Returns:
-            Pipeline: Configured search pipeline
-        """
         pipeline = Pipeline()
-
-        document_store = self.document_store_provider.get_document_store()
-        retriever = RetrieverComponent.create_retriever(document_store)
-
-        pipeline.add_component("retriever", retriever)
-
-        logger.info("Search pipeline built successfully")
+        store = self.document_store_provider.get_document_store()
+        pipeline.add_component("retriever", self.retriever_factory.create_retriever(store))
         return pipeline
-
-
-@lru_cache()
-def get_search_pipeline() -> SearchPipeline:
-    """
-    Get a cached instance of the SearchPipeline.
-
-    Returns:
-        SearchPipeline: Singleton search pipeline instance
-    """
-    document_store_provider = DocumentStoreProvider()
-    return SearchPipeline(document_store_provider)

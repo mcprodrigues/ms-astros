@@ -1,33 +1,22 @@
 import logging
-from haystack_integrations.components.retrievers.weaviate import WeaviateBM25Retriever
+
+from haystack_integrations.components.retrievers.weaviate import WeaviateEmbeddingRetriever
 from haystack_integrations.document_stores.weaviate import WeaviateDocumentStore
+
+from app.providers.pipelines.interfaces import IRetrieverFactory
 
 logger = logging.getLogger(__name__)
 
 
-class RetrieverComponent:
-    """
-    Retriever component factory.
-    Creates and configures Weaviate BM25 retriever instances.
-    """
+class RetrieverComponent(IRetrieverFactory):
+    """Creates Weaviate vector retrievers bound to a document store."""
 
-    @staticmethod
-    def create_retriever(
-        document_store: WeaviateDocumentStore,
-    ) -> WeaviateBM25Retriever:
-        """
-        Create a BM25 retriever instance.
+    def create_retriever(self, document_store: WeaviateDocumentStore) -> WeaviateEmbeddingRetriever:
+        retriever = WeaviateEmbeddingRetriever(document_store=document_store)
+        logger.info("Weaviate embedding retriever created")
+        return retriever
 
-        Args:
-            document_store: WeaviateDocumentStore instance
-
-        Returns:
-            WeaviateBM25Retriever: Configured retriever component
-        """
-        try:
-            retriever = WeaviateBM25Retriever(document_store=document_store)
-            logger.info("Weaviate BM25 retriever created successfully")
-            return retriever
-        except Exception as e:
-            logger.error(f"Failed to create retriever: {e}")
-            raise
+    def to_cosine_similarity(self, raw_score: float) -> float:
+        # Weaviate reports `certainty` for vector search; with the cosine
+        # distance metric certainty = (1 + cos) / 2, so cos = 2 * certainty - 1.
+        return 2.0 * raw_score - 1.0

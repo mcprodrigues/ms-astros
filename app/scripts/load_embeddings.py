@@ -1,114 +1,65 @@
 """
-Script to load embeddings from saved files and index them.
+Load precomputed embeddings from parquet and index them.
 
-Usage: python scripts/load_embeddings.py
+Usage: uv run python -m app.scripts.load_embeddings
 """
 
-import numpy as np
-import pandas as pd
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
 
 from haystack import Document
-from app.providers.pipelines.indexing import IndexingPipeline
 
-logging.basicConfig(level=logging.INFO)
+from app.domain.movie import METADATA_FIELDS
+from app.providers.embeddings_file import fingerprint_of, read_embeddings_parquet
+from app.providers.pipelines.interfaces import IEmbedder, IIndexingPipeline
+
 logger = logging.getLogger(__name__)
 
 
 class EmbeddingLoader:
-    """
-    Load embeddings from disk and index them.
-    """
+    """Reads precomputed embeddings and writes them through the indexing pipeline."""
 
-    def __init__(self):
-        self.indexing_pipeline = IndexingPipeline()
-        self.embeddings_dir = Path("data/embeddings")
+    def __init__(self, indexing_pipeline: IIndexingPipeline, embedder: IEmbedder):
+        self.indexing_pipeline = indexing_pipeline
+        self.embedder = embedder
 
-    def load_from_parquet(self, filename: str = "embeddings.parquet") -> List[Dict[str, Any]]:
-        """
-        Load embeddings from parquet file.
+    def load_from_parquet(self, path: Path) -> list[Document]:
+        """Raises EmbeddingModelMismatchError if the file came from another model."""
+        if not path.exists():
+            raise FileNotFoundError(f"Parquet file not found: {path}")
 
-        Args:
-            filename: Parquet filename
-
-        Returns:
-            List of embedding data dicts
-        """
-        filepath = self.embeddings_dir / filename
-
-        if not filepath.exists():
-            raise FileNotFoundError(f"Parquet file not found: {filepath}")
-
-        logger.info(f"Loading from parquet: {filepath}")
-        df = pd.read_parquet(filepath)
-
-        embeddings_data = []
-        for _, row in df.iterrows():
-            embeddings_data.append({
-                "id": row["id"],
-                "content": row["content"],
-                "embedding": np.array(row["embedding"]),  # Convert back to numpy array
-                "metadata": {
-                    "titulo": row.get("titulo", ""),
-                    "sinopse": row.get("sinopse", ""),
-                    "descricao": row.get("descricao", ""),
-                    "palavras_chave": row.get("palavras_chave", ""),
-                    "diretor": row.get("diretor", ""),
-                }
-            })
-
-        logger.info(f"Loaded {len(embeddings_data)} embeddings from parquet")
-        return embeddings_data
-
-    def index_precomputed_embeddings(self, embeddings_data: List[Dict[str, Any]]) -> int:
-        """
-        Index with precomputed embeddings (bypassing embedding generation).
-
-        Args:
-            embeddings_data: List of embedding data dicts
-
-        Returns:
-            Number of documents indexed
-        """
-        logger.info(f"Indexing {len(embeddings_data)} documents with precomputed embeddings...")
-
-        # Create Haystack Documents with embeddings
-        documents = []
-        for item in embeddings_data:
-            doc = Document(
-                id=item["id"],
-                content=item["content"],
-                embedding=item["embedding"].tolist() if isinstance(item["embedding"], np.ndarray) else item["embedding"],
-                meta=item["metadata"]
+        df = read_embeddings_parquet(path, expected=fingerprint_of(self.embedder))
+        documents = [
+            Document(
+                id=row["id"],
+                content=row["content"],
+                embedding=[float(x) for x in row["embedding"]],
+                meta={name: row.get(name, "") for name in METADATA_FIELDS},
             )
-            documents.append(doc)
+            for row in df.to_dict(orient="records")
+        ]
+        logger.info("Loaded %d embeddings from %s", len(documents), path)
+        return documents
 
-        # Write directly to document store (bypassing pipeline to preserve embeddings)
-        doc_store = self.indexing_pipeline.document_store_provider.get_document_store()
-        doc_store.write_documents(documents)
-
-        logger.info(f"✓ Indexed {len(documents)} documents with precomputed embeddings")
-        return len(documents)
+    def index_documents(self, documents: list[Document]) -> int:
+        return self.indexing_pipeline.index_precomputed_documents(documents)
 
 
-def main():
-    """Main execution."""
-    logger.info("=" * 60)
-    logger.info("Loading and Indexing Embeddings")
-    logger.info("=" * 60)
+def main() -> None:
+    from app.dependencies import build_container
+    from app.settings import Settings
 
-    loader = EmbeddingLoader()
-
-    embeddings_data = loader.load_from_parquet()
-
-    # Index with precomputed embeddings
-    count = loader.index_precomputed_embeddings(embeddings_data)
-
-    logger.info("\n" + "=" * 60)
-    logger.info(f"✓ Successfully indexed {count} documents")
-    logger.info("=" * 60)
+    logging.basicConfig(level=logging.INFO)
+    settings = Settings()
+    container = build_container(settings)
+    try:
+        loader = EmbeddingLoader(
+            indexing_pipeline=container.indexing_pipeline, embedder=container.embedder
+        )
+        count = loader.index_documents(loader.load_from_parquet(Path(settings.EMBEDDINGS_PATH)))
+        logger.info("Indexed %d documents", count)
+    finally:
+        container.close()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,10 @@
 .env
-
 .venv
-
 __pycache__
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
 
-movies.csv
+# Raw catalog datasets are never committed (see AGENTS.md)
+data/*.csv

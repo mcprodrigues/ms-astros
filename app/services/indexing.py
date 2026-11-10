@@ -1,12 +1,12 @@
-from functools import lru_cache
+import asyncio
+import io
 import logging
-from pathlib import Path
-from typing import Annotated, Dict, Any, Optional
+from dataclasses import asdict
+from typing import Any
 
-from fastapi import Depends
-import pandas as pd
-
-from app.providers.pipelines.indexing import IndexingPipeline, get_indexing_pipeline
+from app.domain.catalog_io import read_catalog_csv
+from app.domain.errors import MovieNotFoundError
+from app.domain.movie import Movie
 from app.providers.pipelines.interfaces import IIndexingPipeline
 from app.services.interfaces import IIndexingService
 
@@ -15,11 +15,10 @@ logger = logging.getLogger(__name__)
 
 class IndexingService(IIndexingService):
     """
-    Service responsible for all indexing-related operations:
-    - Single movie ingestion
-    - Batch ingestion from CSV
-    - Document deletion
-    - Document count
+    Movie ingestion, deletion, counting and index reset.
+
+    Pipeline calls are blocking (model inference, store I/O), so they run in
+    worker threads and never block the event loop.
     """
 
     def __init__(self, indexing_pipeline: IIndexingPipeline):
@@ -32,104 +31,73 @@ class IndexingService(IIndexingService):
         descricao: str = "",
         palavras_chave: str = "",
         diretor: str = "",
-        movie_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        try:
-            logger.info(f"Ingesting single movie: {titulo}")
+        movie_id: str | None = None,
+        ano: int | None = None,
+        tema: str = "",
+        tags: str = "",
+    ) -> dict[str, Any]:
+        movie = Movie.create(
+            titulo=titulo,
+            ano=ano,
+            sinopse=sinopse,
+            descricao=descricao,
+            palavras_chave=palavras_chave,
+            diretor=diretor,
+            movie_id=movie_id,
+            tema=tema,
+            tags=tags,
+        )
+        return await asyncio.to_thread(
+            self.indexing_pipeline.index_single_document,
+            content=movie.content,
+            metadata=movie.metadata,
+            doc_id=movie.id,
+        )
 
-            # Build full content
-            content_parts = [titulo, sinopse, descricao, palavras_chave]
-            content_text = ". ".join([part for part in content_parts if part])
+    async def ingest_catalog_csv(self, data: bytes) -> dict[str, Any]:
+        parsed = await asyncio.to_thread(read_catalog_csv, io.BytesIO(data))
+        logger.info(
+            "Parsed catalog: %d movies, %d duplicates, %d invalid rows",
+            len(parsed.movies),
+            len(parsed.duplicates),
+            len(parsed.invalid),
+        )
 
-            metadata = {
-                "titulo": titulo,
-                "sinopse": sinopse,
-                "descricao": descricao,
-                "palavras_chave": palavras_chave,
-                "diretor": diretor,
-            }
-
-            result = self.indexing_pipeline.index_single_document(
-                content=content_text,
-                metadata=metadata,
-                doc_id=movie_id,
+        before = await asyncio.to_thread(self.indexing_pipeline.count_documents)
+        indexed = 0
+        if parsed.movies:
+            result = await asyncio.to_thread(
+                self.indexing_pipeline.index_batch_documents,
+                [
+                    {"doc_id": m.id, "content": m.content, "metadata": m.metadata}
+                    for m in parsed.movies
+                ],
             )
+            indexed = result["indexed_count"]
+        after = await asyncio.to_thread(self.indexing_pipeline.count_documents)
+        inserted = after - before
 
-            return result
+        return {
+            "status": "success",
+            "indexed_count": indexed,
+            "inserted": inserted,
+            "updated": indexed - inserted,
+            "duplicates": [asdict(issue) for issue in parsed.duplicates],
+            "invalid_rows": [asdict(issue) for issue in parsed.invalid],
+        }
 
-        except Exception as e:
-            logger.error(f"Single ingestion failed: {e}")
-            raise
+    async def delete_movie(self, movie_id: str) -> dict[str, Any]:
+        if not await asyncio.to_thread(self.indexing_pipeline.delete_document, movie_id):
+            raise MovieNotFoundError(movie_id)
+        return {"status": "success", "deleted_movie_id": movie_id}
 
-    async def ingest_movies_from_csv(
-        self, csv_path: str = "data/movies.csv"
-    ) -> Dict[str, Any]:
-        try:
-            logger.info(f"Starting batch CSV ingestion: {csv_path}")
+    async def get_document_count(self) -> dict[str, Any]:
+        count = await asyncio.to_thread(self.indexing_pipeline.count_documents)
+        return {"status": "success", "document_count": count}
 
-            if not Path(csv_path).exists():
-                raise FileNotFoundError(f"CSV not found: {csv_path}")
+    async def reset_index(self) -> dict[str, Any]:
+        await asyncio.to_thread(self.indexing_pipeline.reset_index)
+        return {"status": "success", "message": "Index reset complete. All documents deleted."}
 
-            df = pd.read_csv(csv_path)
-            documents = []
-
-            for idx, row in df.iterrows():
-                titulo = str(row.get("Título Original", "")).strip()
-                direcao = str(
-                    row.get("Direção / Um filme de / Uma obra de", "")
-                ).strip()
-                sinopse = str(row.get("Sinopse", "")).strip()
-                descricao = str(row.get("Descrição Completa", "")).strip()
-                palavras = str(row.get("Palavras-Chave", "")).strip()
-
-                content_parts = [titulo, sinopse, descricao, palavras]
-                content_text = ". ".join([part for part in content_parts if part])
-
-                documents.append(
-                    {
-                        "doc_id": f"movie-{idx}",
-                        "content": content_text,
-                        "metadata": {
-                            "titulo": titulo,
-                            "sinopse": sinopse,
-                            "descricao": descricao,
-                            "palavras_chave": palavras,
-                            "diretor": direcao,
-                        },
-                    }
-                )
-
-            results = self.indexing_pipeline.index_batch_documents(documents)
-            return results
-
-        except Exception as e:
-            logger.error(f"CSV ingestion failed: {e}")
-            raise
-
-    async def delete_movie(self, movie_id: str) -> Dict[str, Any]:
-        try:
-            deleted = self.indexing_pipeline.delete_document(movie_id)
-            return {
-                "status": "success" if deleted else "failure",
-                "deleted_movie_id": movie_id,
-                "deleted": deleted,
-            }
-        except Exception as e:
-            logger.error(f"Delete failed: {e}")
-            raise
-
-    async def get_document_count(self) -> Dict[str, Any]:
-        try:
-            count = self.indexing_pipeline.count_documents()
-            return {"status": "success", "document_count": count}
-        except Exception as e:
-            logger.error(f"Count failed: {e}")
-            raise
-
-
-@lru_cache()
-def get_indexing_service(
-    pipeline: Annotated[IndexingPipeline, Depends(get_indexing_pipeline)],
-) -> IIndexingService:
-    return IndexingService(indexing_pipeline=pipeline)
-
+    async def is_ready(self) -> bool:
+        return await asyncio.to_thread(self.indexing_pipeline.is_ready)

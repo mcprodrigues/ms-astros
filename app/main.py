@@ -1,150 +1,95 @@
-"""
-Main FastAPI application with lifespan management.
-Loads precomputed embeddings on startup if available.
-"""
+"""FastAPI application factory and lifespan."""
 
 import asyncio
+import logging
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.scripts.load_embeddings import EmbeddingLoader
 from app.api import api_router
-from app.services.indexing import IndexingService
-from app.services.search import SearchService
+from app.bootstrap import load_precomputed_embeddings_if_empty
+from app.dependencies import Container, build_container
+from app.error_handlers import register_error_handlers
+from app.settings import Settings
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+API_VERSION = "1.0.0"
 
-async def load_precomputed_embeddings():
+
+def create_app(
+    settings: Settings | None = None,
+    container_factory: Callable[[Settings], Container] = build_container,
+    bootstrap_index: bool = True,
+) -> FastAPI:
     """
-    Load precomputed embeddings on startup (only if index is empty)
-    Prevents reindexing when Weaviate already contains documents.
+    Build the application. Tests pass a `container_factory` returning fakes and
+    `bootstrap_index=False` so no real Weaviate or model is needed.
     """
-    embeddings_path = Path("data/embeddings/embeddings.parquet")
-    
-    if not embeddings_path.exists():
-        logger.warning(f"Embeddings file not found: {embeddings_path}")
-        logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
-        return
-    
-    try:
-        indexing = IndexingService()
-        count_result = await indexing.get_document_count()
-        total_documents = count_result.get("document_count", 0)
-        
-        if total_documents > 0:
-            logger.info(f"Index already has {total_documents} documents. Skipping precomputed embeddings load.")
-            return
-        
-        logger.info("Loading precomputed embeddings...")
-        loader = EmbeddingLoader()
-        embeddings_data = loader.load_from_parquet("embeddings.parquet")
-        
-        count = loader.index_precomputed_embeddings(embeddings_data)
-        logger.info(f"Successfully indexed {count} precomputed embeddings.")
-        
-    except Exception as e:
-        logger.error(f"Error loading precomputed embeddings: {e}")
-        logger.warning("Starting with empty index. Use POST /api/v1/index/movie to add documents.")
+    settings = settings or Settings()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Application startup/shutdown lifecycle.
-    """
-    logger.info("=" * 60)
-    logger.info("Starting Astros Semantic Search API")
-    logger.info("=" * 60)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        logger.info("Starting Astros API")
+        container = await asyncio.to_thread(container_factory, settings)
+        app.state.container = container
+        if bootstrap_index:
+            await asyncio.to_thread(
+                load_precomputed_embeddings_if_empty,
+                container.indexing_pipeline,
+                container.embedder,
+                Path(settings.EMBEDDINGS_PATH),
+            )
+        logger.info("Astros API ready")
+        try:
+            yield
+        finally:
+            logger.info("Shutting down Astros API")
+            container.close()
 
-    try:
-        # Wait for Weaviate to be ready
-        logger.info("Waiting for Weaviate to be ready...")
-        await asyncio.sleep(10)
-        logger.info("Weaviate connection established")
+    app = FastAPI(
+        title="Astros Semantic Search API",
+        description="Semantic search microservice for cinema educational materials",
+        version=API_VERSION,
+        lifespan=lifespan,
+    )
+    if settings.CORS_ALLOW_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.CORS_ALLOW_ORIGINS,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "DELETE"],
+            allow_headers=["Content-Type", "X-API-Key"],
+        )
+    register_error_handlers(app)
+    app.include_router(api_router)
 
-        # Load precomputed embeddings if available
-        await load_precomputed_embeddings()
-
-    except Exception as e:
-        logger.error(f"Error during startup: {e}")
-        logger.warning("API will start but may not have indexed documents")
-
-    logger.info("=" * 60)
-    logger.info("Astros API Ready")
-    logger.info("=" * 60)
-    
-    yield
-
-    logger.info("Shutting down Astros Semantic Search API...")
-
-
-# Initialize FastAPI application
-app = FastAPI(
-    title="Astros Semantic Search API",
-    description="Semantic search microservice for cinema educational materials",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(api_router)
-
-@app.get("/", tags=["root"])
-async def root():
-    """API root endpoint with basic information."""
-    return {
-        "name": "Astros Semantic Search API",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "docs": "/docs",
-            "search": "/api/v1/search",
-            "index": "/api/v1/index",
-            "health": "/ping",
-        },
-    }
-
-@app.get("/ping", tags=["health"])
-async def ping():
-    """Health check endpoint."""
-    return {"message": "pong!", "status": "healthy"}
-
-
-@app.get("/health", tags=["health"])
-async def health_check():
-    """
-    Detailed health check with document count.
-    """
-    try:
-        
-        service = IndexingService()        
-
-        count_result = await service.get_document_count()
-        
+    @app.get("/", tags=["root"])
+    async def root():
         return {
-            "status": "healthy",
-            "api_version": "1.0.0",
-            "indexed_documents": count_result.get("document_count", 0),
+            "name": "Astros Semantic Search API",
+            "version": API_VERSION,
+            "endpoints": {
+                "docs": "/docs",
+                "search": "/api/v1/search",
+                "index": "/api/v1/index",
+                "liveness": "/ping",
+                "readiness": "/api/v1/health",
+            },
         }
-    except Exception as e:
-        logger.error(f"Health check error: {e}")
-        return {
-            "status": "degraded",
-            "error": str(e),
-        }
+
+    @app.get("/ping", tags=["health"])
+    async def ping():
+        """Liveness: the process is up. Does not touch dependencies."""
+        return {"message": "pong!", "status": "alive"}
+
+    return app
+
+
+app = create_app()

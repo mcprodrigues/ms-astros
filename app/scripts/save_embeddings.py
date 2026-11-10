@@ -1,121 +1,62 @@
 """
-Script to generate and save embeddings to disk.
-Supports multiple formats: pickle, numpy, parquet.
+Generate embeddings for the catalog CSV and save them as parquet.
 
-Usage: python scripts/save_embeddings.py
+Usage: uv run python -m app.scripts.save_embeddings [path/to/catalog.csv]
 """
 
-import pandas as pd
-from pathlib import Path
 import logging
-from typing import Dict, List, Any
+import sys
+from pathlib import Path
+from typing import Any
 
-from app.providers.pipelines.components.embedder import EmbedderComponent
+from app.domain.catalog_io import read_catalog_csv
+from app.domain.movie import Movie
+from app.providers.embeddings_file import fingerprint_of, write_embeddings_parquet
+from app.providers.pipelines.interfaces import IEmbedder
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class EmbeddingSaver:
-    """
-    Generate embeddings from CSV and save to multiple formats.
-    """
+    """Embeds catalog movies and writes them to a parquet file."""
 
-    def __init__(self):
-        self.embedder = EmbedderComponent()
-        self.output_dir = Path("data/embeddings")
-        self.output_dir.mkdir(exist_ok=True)
+    def __init__(self, embedder: IEmbedder, output_dir: Path):
+        self.embedder = embedder
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_embeddings_from_csv(self, csv_path: str = "data/movies.csv") -> List[Dict[str, Any]]:
-        """
-        Generate embeddings for all movies in CSV.
+    def generate_embeddings(self, movies: list[Movie]) -> list[dict[str, Any]]:
+        logger.info("Generating embeddings for %d movies", len(movies))
+        embeddings = self.embedder.encode_batch([m.content for m in movies])
+        return [
+            {"id": m.id, "content": m.content, "embedding": e.tolist(), **m.metadata}
+            for m, e in zip(movies, embeddings, strict=True)
+        ]
 
-        Args:
-            csv_path: Path to CSV file
-
-        Returns:
-            List of dicts with content, embeddings, and metadata
-        """
-        logger.info(f"Reading CSV: {csv_path}")
-        df = pd.read_csv(csv_path)
-
-        texts = []
-        metadata_list = []
-
-        for idx, row in df.iterrows():
-            titulo = str(row.get("Título Original", "")).strip()
-            diretor = str(row.get("Direção / Um filme de / Uma obra de", "")).strip()
-            sinopse = str(row.get("Sinopse", "")).strip()
-            descricao = str(row.get("Descrição Completa", "")).strip()
-            palavras = str(row.get("Palavras-Chave", "")).strip()
-
-            # Build content
-            content_parts = [titulo, sinopse, descricao, palavras]
-            content_text = ". ".join([c for c in content_parts if c])
-
-            texts.append(content_text)
-            metadata_list.append({
-                "id": f"movie_{idx}",
-                "titulo": titulo,
-                "sinopse": sinopse,
-                "descricao": descricao,
-                "palavras_chave": palavras,
-                "diretor": diretor,
-            })
-
-        logger.info(f"Generating embeddings for {len(texts)} documents...")
-        embeddings = self.embedder.encode_batch(texts)
-
-        # Combine everything
-        embeddings_data = []
-        for i, (text, embedding, metadata) in enumerate(zip(texts, embeddings, metadata_list)):
-            embeddings_data.append({
-                "id": metadata["id"],
-                "content": text,
-                "embedding": embedding,
-                "metadata": metadata
-            })
-
-            if (i + 1) % 100 == 0:
-                logger.info(f"Processed {i + 1}/{len(texts)} embeddings")
-
-        logger.info(f"Generated {len(embeddings_data)} embeddings")
-        return embeddings_data
-
-    def save_as_parquet(self, embeddings_data: List[Dict[str, Any]], filename: str = "embeddings.parquet"):
-        """
-        Save embeddings as parquet (structured, cross-platform).
-        Best for: Data pipelines, analytics, cross-platform compatibility.
-
-        File size: Small (compressed)
-        Load speed: Fast
-        Compatibility: Python, R, Spark, DuckDB, etc.
-        """
+    def save_as_parquet(
+        self, records: list[dict[str, Any]], filename: str = "embeddings.parquet"
+    ) -> Path:
         output_path = self.output_dir / filename
+        write_embeddings_parquet(records, output_path, fingerprint_of(self.embedder))
+        logger.info("Saved %d embeddings to %s", len(records), output_path)
+        return output_path
 
-        # Prepare DataFrame
-        records = []
-        for item in embeddings_data:
-            record = {
-                "id": item["id"],
-                "content": item["content"],
-                "embedding": item["embedding"].tolist(),  # Convert to list for parquet
-                **item["metadata"]
-            }
-            records.append(record)
 
-        df = pd.DataFrame(records)
+def main() -> None:
+    from app.dependencies import build_embedder
+    from app.settings import Settings
 
-        logger.info(f"Saving as parquet: {output_path}")
-        df.to_parquet(output_path, compression="snappy", index=False)
+    logging.basicConfig(level=logging.INFO)
+    settings = Settings()
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else settings.CSV_FILE_PATH
 
-        file_size = output_path.stat().st_size / (1024 * 1024)
-        logger.info(f"Saved {len(embeddings_data)} embeddings as parquet ({file_size:.2f} MB)")
+    parsed = read_catalog_csv(csv_path)
+    for issue in parsed.duplicates + parsed.invalid:
+        logger.warning("Skipped CSV line %d: %s", issue.line, issue.reason)
 
-def main():
-    """Main execution."""
-    saver = EmbeddingSaver()
-    embeddings_data = saver.generate_embeddings_from_csv()
-    saver.save_as_parquet(embeddings_data)
+    output_path = Path(settings.EMBEDDINGS_PATH)
+    saver = EmbeddingSaver(embedder=build_embedder(settings), output_dir=output_path.parent)
+    saver.save_as_parquet(saver.generate_embeddings(parsed.movies), filename=output_path.name)
 
 
 if __name__ == "__main__":
