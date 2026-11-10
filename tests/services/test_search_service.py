@@ -46,3 +46,18 @@ async def test_server_default_top_k_applies_when_omitted(indexed):
     )
 
     assert response.total_results == 1
+
+
+async def test_response_includes_theme_and_tags(container):
+    await container.indexing_service.ingest_single_movie(
+        titulo="Lavra dor", tema="reforma agrária", tags="campo, luta", movie_id="m1"
+    )
+
+    response = await container.search_service.semantic_search(
+        SearchRequest(query="luta no campo", min_score=0.0)
+    )
+
+    assert (response.results[0].tema, response.results[0].tags) == (
+        "reforma agrária",
+        "campo, luta",
+    )

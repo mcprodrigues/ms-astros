@@ -17,10 +17,14 @@ class EmbedderComponent(IEmbedder):
     the first request.
     """
 
-    def __init__(self, model_name: str):
+    def __init__(
+        self, model_name: str, max_seq_length: int | None = None, revision: str | None = None
+    ):
         self.model_name = model_name
-        logger.info("Loading embedding model: %s", model_name)
-        self._model = SentenceTransformer(model_name)
+        logger.info("Loading embedding model: %s (revision %s)", model_name, revision or "latest")
+        self._model = SentenceTransformer(model_name, revision=revision)
+        if max_seq_length:
+            self._model.max_seq_length = max_seq_length
         logger.info("Embedding model loaded (dim=%d)", self.get_embedding_dimension())
 
     def encode(self, text: str) -> np.ndarray:

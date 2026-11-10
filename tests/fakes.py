@@ -74,6 +74,10 @@ class InMemoryStoreProvider(IDocumentStoreProvider):
     def reset(self) -> None:
         self.store.delete_all_documents()
 
+    def stored_vector_dimension(self) -> int | None:
+        docs = self.store.filter_documents()
+        return len(docs[0].embedding) if docs and docs[0].embedding else None
+
     def document_exists(self, doc_id: str) -> bool:
         filters = {"field": "id", "operator": "==", "value": doc_id}
         return bool(self.store.filter_documents(filters=filters))

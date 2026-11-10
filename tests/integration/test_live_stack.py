@@ -97,3 +97,12 @@ def test_incompatible_existing_schema_is_refused(integration_settings, live_cont
     finally:
         client.collections.delete(name)
         provider.close()
+
+
+def test_stored_vector_dimension_matches_live_model(live_client, empty_container, catalog_csv):
+    provider = empty_container.document_store_provider
+    assert provider.stored_vector_dimension() is None
+
+    upload(live_client, catalog_csv)
+
+    assert provider.stored_vector_dimension() == empty_container.embedder.get_embedding_dimension()

@@ -33,6 +33,8 @@ class IndexingService(IIndexingService):
         diretor: str = "",
         movie_id: str | None = None,
         ano: int | None = None,
+        tema: str = "",
+        tags: str = "",
     ) -> dict[str, Any]:
         movie = Movie.create(
             titulo=titulo,
@@ -42,6 +44,8 @@ class IndexingService(IIndexingService):
             palavras_chave=palavras_chave,
             diretor=diretor,
             movie_id=movie_id,
+            tema=tema,
+            tags=tags,
         )
         return await asyncio.to_thread(
             self.indexing_pipeline.index_single_document,

@@ -10,7 +10,7 @@ async def test_ingest_single_movie_builds_content_and_metadata(container, store_
 
     assert result["document_id"] == "m1"
     doc = store_provider.store.filter_documents()[0]
-    assert doc.content == "Lavra dor. Análise poética. Direção: Ana Carolina"
+    assert doc.content == "Lavra dor. Direção: Ana Carolina. Análise poética"
     assert doc.meta["diretor"] == "Ana Carolina"
 
 

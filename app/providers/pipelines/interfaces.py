@@ -42,6 +42,10 @@ class IDocumentStoreProvider(ABC):
         """True when the backing store answers readiness checks."""
 
     @abstractmethod
+    def stored_vector_dimension(self) -> int | None:
+        """Length of the vectors already indexed, or None when the index is empty."""
+
+    @abstractmethod
     def reset(self) -> None:
         """Delete every document, leaving an empty index with the declared schema."""
 

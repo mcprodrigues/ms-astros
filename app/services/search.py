@@ -40,6 +40,8 @@ class SearchService(ISearchService):
                 sinopse=doc.meta.get("sinopse", ""),
                 descricao=doc.meta.get("descricao", ""),
                 palavras_chave=doc.meta.get("palavras_chave", ""),
+                tema=doc.meta.get("tema", ""),
+                tags=doc.meta.get("tags", ""),
                 diretor=doc.meta.get("diretor", ""),
                 score=round(doc.score, 4),
             )
