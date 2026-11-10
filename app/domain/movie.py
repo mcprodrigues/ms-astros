@@ -28,11 +28,13 @@ CATALOG_COLUMNS: dict[str, tuple[str, ...]] = {
     "sinopse": ("Sinopse",),
     "descricao": ("Descrição Completa",),
     "palavras_chave": ("Palavras-Chave",),
+    "tema": ("Tema",),
+    "tags": ("Tags",),
     "diretor": ("Direção / Um filme de / Uma obra de",),
 }
 REQUIRED_COLUMNS = ("titulo",)
 
-METADATA_FIELDS = ("titulo", "sinopse", "descricao", "palavras_chave", "diretor")
+METADATA_FIELDS = ("titulo", "sinopse", "descricao", "palavras_chave", "tema", "tags", "diretor")
 
 
 def clean_text(value: Any) -> str:
@@ -63,6 +65,8 @@ class Movie(BaseModel):
     sinopse: str = ""
     descricao: str = ""
     palavras_chave: str = ""
+    tema: str = ""
+    tags: str = ""
     diretor: str = ""
 
     @classmethod
@@ -75,6 +79,8 @@ class Movie(BaseModel):
         palavras_chave: str = "",
         diretor: str = "",
         movie_id: str | None = None,
+        tema: str = "",
+        tags: str = "",
     ) -> "Movie":
         titulo = clean_text(titulo)
         return cls(
@@ -84,18 +90,28 @@ class Movie(BaseModel):
             sinopse=clean_text(sinopse),
             descricao=clean_text(descricao),
             palavras_chave=clean_text(palavras_chave),
+            tema=clean_text(tema),
+            tags=clean_text(tags),
             diretor=clean_text(diretor),
         )
 
     @property
     def content(self) -> str:
-        """The text that gets embedded and keyword-indexed."""
+        """
+        The text that gets embedded.
+
+        Short curated fields come first and long free text (synopsis, full
+        description) last: if a model truncates, it loses the least informative
+        part. This order was chosen on the golden set (docs/evaluation).
+        """
         parts = [
             self.titulo,
+            f"Tema: {self.tema}" if self.tema else "",
+            f"Tags: {self.tags}" if self.tags else "",
+            f"Palavras-chave: {self.palavras_chave}" if self.palavras_chave else "",
+            f"Direção: {self.diretor}" if self.diretor else "",
             self.sinopse,
             self.descricao,
-            self.palavras_chave,
-            f"Direção: {self.diretor}" if self.diretor else "",
         ]
         return ". ".join(part for part in parts if part)
 
@@ -143,6 +159,8 @@ def movie_from_row(row: Mapping[str, Any], columns: Mapping[str, str]) -> Movie:
         sinopse=clean_text(get("sinopse")),
         descricao=clean_text(get("descricao")),
         palavras_chave=clean_text(get("palavras_chave")),
+        tema=clean_text(get("tema")),
+        tags=clean_text(get("tags")),
         diretor=clean_text(get("diretor")),
     )
 

@@ -9,13 +9,16 @@ compartilhar palavras com o cadastro do filme.
 | **FastAPI** + Pydantic v2 | API HTTP e validação |
 | **Haystack 3** | Pipelines de indexação e busca |
 | **Weaviate** (≥ 1.27) | Armazenamento e busca vetorial |
-| **sentence-transformers** | Embeddings multilíngues (`paraphrase-multilingual-MiniLM-L12-v2`) |
+| **sentence-transformers** | Embeddings multilíngues com `BAAI/bge-m3` (revisão fixada) |
 | **uv** · Python 3.13 | Dependências e ambiente |
 | **Docker Compose** | API + Weaviate |
 
 ---
 
 ## 🚀 Como rodar
+
+Requisitos: Docker com ~7 GB de disco para a imagem (o modelo bge-m3 vem embutido) e
+~1,5 GB de RAM livre para a API.
 
 ```bash
 cp .env.example .env          # defina API_KEY
@@ -40,8 +43,8 @@ Veja `.env.example`. As principais:
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `API_KEY` | — | Exigida no header `X-API-Key` das rotas de escrita. **Sem ela, as escritas ficam desligadas (503).** |
-| `EMBEDDING_MODEL` | MiniLM-L12 multilíngue | Precisa ser o mesmo modelo que gerou o parquet. O startup recusa um arquivo de outro modelo. |
-| `MIN_SCORE_THRESHOLD` | `0.42` | Similaridade cosseno mínima, calibrada no golden set |
+| `EMBEDDING_MODEL` / `EMBEDDING_MODEL_REVISION` | `BAAI/bge-m3` @ commit fixado | Precisa ser o modelo que gerou o parquet e os vetores do índice. O startup recusa qualquer divergência. |
+| `MIN_SCORE_THRESHOLD` | `0.50` | Similaridade cosseno mínima, calibrada no golden set para o modelo atual |
 | `CORS_ALLOW_ORIGINS` | `[]` | Lista JSON de origens permitidas. Vazio = CORS desligado. |
 | `MAX_UPLOAD_BYTES` | 10 MB | Limite do upload de CSV |
 
@@ -99,7 +102,7 @@ convenções e princípios do repositório.
 ## 🛠️ Scripts
 
 ```bash
-# Gerar embeddings do catálogo (grava o fingerprint do modelo no parquet)
+# Gerar embeddings do catálogo (grava o fingerprint do modelo no parquet; ~1,5 min em CPU)
 uv run python -m app.scripts.save_embeddings caminho/do/catalogo.csv
 
 # Indexar o parquet manualmente
@@ -123,8 +126,9 @@ uv run pytest -m integration     # integração: Weaviate real (docker compose u
 A CI (GitHub Actions) roda lint, testes unitários e integração em todo PR.
 
 **Avaliação:** `tests/eval/golden.jsonl` guarda consultas com julgamentos de relevância
-(por título + ano). O baseline da v1 está em `docs/evaluation/v1-baseline.md`. Toda
-mudança de modelo, de campos indexados ou de backend deve ser comparada com ele.
+(por título + ano). O baseline inicial está em `docs/evaluation/v1-baseline.md`, e a escolha
+do modelo e da ordem dos campos (com os números) em `docs/evaluation/v1-model-selection.md`.
+Toda mudança de modelo, de campos indexados ou de backend deve ser comparada com eles.
 
 ## 🤝 Agradecimentos
 

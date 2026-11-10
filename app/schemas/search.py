@@ -9,7 +9,7 @@ class SearchRequest(BaseModel):
             "example": {
                 "query": "filmes sobre luta no campo e trabalho rural",
                 "top_k": 5,
-                "min_score": 0.42,
+                "min_score": 0.5,
             }
         }
     )

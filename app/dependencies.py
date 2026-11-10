@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from fastapi import Request
 
+from app.domain.errors import EmbeddingModelMismatchError
 from app.providers.pipelines.components.embedder import EmbedderComponent
 from app.providers.pipelines.components.retriever import RetrieverComponent
 from app.providers.pipelines.components.store import DocumentStoreProvider
@@ -54,7 +55,28 @@ def build_document_store_provider(settings: Settings) -> IDocumentStoreProvider:
 
 
 def build_embedder(settings: Settings) -> IEmbedder:
-    return EmbedderComponent(model_name=settings.EMBEDDING_MODEL)
+    return EmbedderComponent(
+        model_name=settings.EMBEDDING_MODEL,
+        max_seq_length=settings.EMBEDDING_MAX_SEQ_LENGTH,
+        revision=settings.EMBEDDING_MODEL_REVISION,
+    )
+
+
+def ensure_index_matches_embedder(
+    store_provider: IDocumentStoreProvider, embedder: IEmbedder
+) -> None:
+    """
+    Refuse to serve an index whose vectors came from a model with another
+    dimension: every query would be rejected by the store.
+    """
+    stored = store_provider.stored_vector_dimension()
+    expected = embedder.get_embedding_dimension()
+    if stored is not None and stored != expected:
+        raise EmbeddingModelMismatchError(
+            f"The index holds {stored}-dimensional vectors but {embedder.model_name} "
+            f"produces {expected}. Reset the index (POST /api/v1/index/reset, or drop the "
+            "collection) and restart to reseed it from the precomputed embeddings."
+        )
 
 
 def build_container(settings: Settings) -> Container:
@@ -64,6 +86,7 @@ def build_container(settings: Settings) -> Container:
     store_provider.ensure_compatible_schema()
 
     embedder = build_embedder(settings)
+    ensure_index_matches_embedder(store_provider, embedder)
     indexing_pipeline = IndexingPipeline(document_store_provider=store_provider, embedder=embedder)
     search_pipeline = SearchPipeline(
         document_store_provider=store_provider,

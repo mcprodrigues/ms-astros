@@ -29,11 +29,20 @@ class Settings(BaseSettings):
     CSV_FILE_PATH: str = "data/movies.csv"
     EMBEDDINGS_PATH: str = "data/embeddings/embeddings.parquet"
 
-    # Embedding model (must match the model that produced EMBEDDINGS_PATH)
-    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # Embedding model (must match the model that produced EMBEDDINGS_PATH and the
+    # vectors already in the index). Chosen on the golden set:
+    # docs/evaluation/v1-model-selection.md
+    EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    # Pinned Hugging Face commit, so an upstream push never changes the model
+    # silently. None = latest (only for experiments).
+    EMBEDDING_MODEL_REVISION: str | None = "5617a9f61b028005a4858fdac845db406aefb181"
+    # Tokens read per movie. bge-m3 accepts 8192; 1024 covers the longest catalog
+    # entry with room to spare while bounding memory.
+    EMBEDDING_MAX_SEQ_LENGTH: int = 1024
 
     # Search
     DEFAULT_TOP_K: int = 5
-    # Calibrated on the golden set (docs/evaluation/v1-baseline.md): the lowest
-    # threshold at which no out-of-domain query returns results.
-    MIN_SCORE_THRESHOLD: float = 0.42
+    # Calibrated for bge-m3 on the golden set (docs/evaluation/v1-model-selection.md):
+    # best F1 with no out-of-domain query returning results. Model-specific:
+    # recalibrate whenever EMBEDDING_MODEL changes.
+    MIN_SCORE_THRESHOLD: float = 0.50

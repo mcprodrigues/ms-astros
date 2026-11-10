@@ -13,7 +13,15 @@ from app.providers.pipelines.interfaces import IDocumentStoreProvider
 
 logger = logging.getLogger(__name__)
 
-SEARCHABLE_TEXT_PROPERTIES = ("titulo", "sinopse", "descricao", "palavras_chave", "diretor")
+SEARCHABLE_TEXT_PROPERTIES = (
+    "titulo",
+    "sinopse",
+    "descricao",
+    "palavras_chave",
+    "tema",
+    "tags",
+    "diretor",
+)
 
 
 def collection_properties() -> list[dict]:
@@ -68,6 +76,14 @@ class DocumentStoreProvider(IDocumentStoreProvider):
         except Exception as e:
             logger.warning("Weaviate readiness check failed: %s", e)
             return False
+
+    def stored_vector_dimension(self) -> int | None:
+        page = self._document_store.collection.query.fetch_objects(limit=1, include_vector=True)
+        if not page.objects:
+            return None
+        vector = page.objects[0].vector
+        vector = vector.get("default") if isinstance(vector, dict) else vector
+        return len(vector) if vector else None
 
     def reset(self) -> None:
         # Drop and recreate: faster than deleting in batches, and re-applies the schema.

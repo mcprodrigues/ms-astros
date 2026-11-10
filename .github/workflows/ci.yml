@@ -44,7 +44,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-${{ hashFiles('app/settings.py') }}
+          key: hf-${{ hashFiles('Dockerfile') }}
+      # Same download as the Dockerfile: only the files sentence-transformers needs,
+      # so transformers does not also fetch a converted copy of the weights.
+      - name: Download embedding model
+        run: >
+          uv run python -c "from huggingface_hub import snapshot_download;
+          from app.settings import Settings; s = Settings();
+          snapshot_download(s.EMBEDDING_MODEL, revision=s.EMBEDDING_MODEL_REVISION,
+          allow_patterns=['*.json', '*.model', '1_Pooling/*', 'pytorch_model.bin', 'model.safetensors'])"
       - name: Wait for Weaviate
         run: |
           for i in $(seq 1 30); do
@@ -55,3 +63,4 @@ jobs:
       - run: uv run pytest -m integration
         env:
           WEAVIATE_URL: http://localhost:8080
+          HF_HUB_OFFLINE: "1"

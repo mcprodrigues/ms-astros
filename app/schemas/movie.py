@@ -22,7 +22,9 @@ class MovieUpload(BaseModel):
     )
     sinopse: str = Field(default="", description="Movie synopsis")
     descricao: str = Field(default="", description="Full movie description")
-    palavras_chave: str = Field(default="", description="Keywords or tags")
+    palavras_chave: str = Field(default="", description="Keywords")
+    tema: str = Field(default="", description="Themes")
+    tags: str = Field(default="", description="Curatorial tags")
     diretor: str = Field(default="", description="Director name")
     movie_id: str | None = Field(
         default=None,
@@ -44,5 +46,7 @@ class MovieResponse(BaseModel):
     sinopse: str
     descricao: str
     palavras_chave: str
+    tema: str = ""
+    tags: str = ""
     diretor: str
     score: float = Field(description="Cosine similarity between query and movie (-1 to 1)")

@@ -15,9 +15,17 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-ARG EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+# Must match EMBEDDING_MODEL / EMBEDDING_MODEL_REVISION in app/settings.py.
+# Download only what sentence-transformers needs. Loading the model online would
+# make transformers fetch a second, converted copy of the weights from a PR branch
+# (+2.3 GB), and the repo also ships ONNX/ColBERT files we never use.
+ARG EMBEDDING_MODEL=BAAI/bge-m3
+ARG EMBEDDING_MODEL_REVISION=5617a9f61b028005a4858fdac845db406aefb181
+ARG EMBEDDING_MODEL_FILES="*.json *.model 1_Pooling/* pytorch_model.bin model.safetensors"
 RUN /app/.venv/bin/python -c \
-    "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}')"
+    "from huggingface_hub import snapshot_download; snapshot_download('${EMBEDDING_MODEL}', revision='${EMBEDDING_MODEL_REVISION}', allow_patterns='${EMBEDDING_MODEL_FILES}'.split())" \
+ && HF_HUB_OFFLINE=1 /app/.venv/bin/python -c \
+    "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}', revision='${EMBEDDING_MODEL_REVISION}')"
 
 # ---- runtime: no build tooling, no network needed for the model ----
 FROM python:3.13-slim AS runtime

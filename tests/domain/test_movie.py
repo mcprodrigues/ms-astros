@@ -44,7 +44,7 @@ def test_movie_id_is_a_uuid_independent_of_row_position():
 def test_content_includes_director_and_skips_empty_fields():
     movie = Movie.create(titulo="Lavra dor", sinopse="Sindicalismo", diretor="Ana Carolina")
 
-    assert movie.content == "Lavra dor. Sindicalismo. Direção: Ana Carolina"
+    assert movie.content == "Lavra dor. Direção: Ana Carolina. Sindicalismo"
 
 
 def test_explicit_movie_id_is_respected():
@@ -73,3 +73,18 @@ def test_read_catalog_csv_end_to_end(catalog_csv):
     assert result.movies[1].sinopse == ""  # blank cell is '', never 'nan'
     assert [i.line for i in result.duplicates] == [4]
     assert [i.line for i in result.invalid] == [5]
+
+
+def test_content_includes_theme_and_tags():
+    movie = Movie.create(titulo="Bullfight", tema="morte como espetáculo", tags="tourada")
+
+    assert movie.content == "Bullfight. Tema: morte como espetáculo. Tags: tourada"
+
+
+def test_catalog_maps_theme_and_tags_columns():
+    result = parse_catalog(
+        ["Título Original", "Tema", "Tags"],
+        [{"Título Original": "Ism, ism", "Tema": "intervenção artística", "Tags": "grafite"}],
+    )
+
+    assert (result.movies[0].tema, result.movies[0].tags) == ("intervenção artística", "grafite")

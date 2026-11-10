@@ -29,6 +29,8 @@ async def ingest_single_movie(
         diretor=movie.diretor,
         movie_id=movie.movie_id,
         ano=movie.ano,
+        tema=movie.tema,
+        tags=movie.tags,
     )
 
 
@@ -39,6 +41,8 @@ async def ingest_movie_form(
     sinopse: str = Form(""),
     descricao: str = Form(""),
     palavras_chave: str = Form(""),
+    tema: str = Form(""),
+    tags: str = Form(""),
     diretor: str = Form(""),
     movie_id: str | None = Form(None),
     ano: int | None = Form(None, ge=1880, le=2100),
@@ -52,6 +56,8 @@ async def ingest_movie_form(
         diretor=diretor,
         movie_id=movie_id,
         ano=ano,
+        tema=tema,
+        tags=tags,
     )
 
 
