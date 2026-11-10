@@ -32,6 +32,8 @@ Interactive API docs: `http://localhost:8000/docs`
 - Tests that need a live Weaviate are marked `@pytest.mark.integration`
   and excluded from the default run
 - Every bug fix ships with a regression test
+- Changes to the embedding model, indexed fields or search backend are compared
+  against the golden-set baseline (`uv run python -m app.scripts.evaluate`)
 - Run: `uv run pytest --cov=app` (integration: `uv run pytest -m integration`)
 
 ## Lint & format
@@ -41,13 +43,16 @@ Interactive API docs: `http://localhost:8000/docs`
 
 ## Repository layout
 
-- `app/routers/` — HTTP layer: validate input, call a service, map errors to HTTP
+- `app/dependencies.py` — composition root: the only place concrete classes are built
+- `app/domain/` — canonical models, catalog mapping, domain exceptions; no network I/O
+- `app/routers/` — HTTP layer: validate input, call a service, serialize
 - `app/services/` — business logic; depends only on pipeline interfaces
 - `app/providers/pipelines/` — Haystack pipelines (indexing, search)
 - `app/providers/pipelines/components/` — reusable building blocks
   (embedder, retriever, document store)
 - `app/schemas/` — Pydantic request/response models
-- `app/scripts/` — offline jobs (e.g. embedding generation), run manually
+- `app/scripts/` — offline jobs (embedding generation/loading, evaluation), run manually
+- `app/evaluation/` + `tests/eval/golden.jsonl` — retrieval metrics and the golden set
 - `app/settings.py` — the only place configuration is read
 - `app/api.py` — mounts all routers under `/api/v1`
 - `data/` — local datasets and derived artifacts (see Data)
@@ -56,8 +61,8 @@ Interactive API docs: `http://localhost:8000/docs`
 Conventions:
 - Every service and pipeline has an ABC contract in the sibling
   `interfaces.py`, prefixed `I` (`ISearchService`, `IIndexingPipeline`)
-- Dependencies are exposed via cached `get_<name>()` factory functions and
-  wired with FastAPI `Depends`
+- Request handlers get collaborators through `get_<name>()` functions in
+  `app/dependencies.py`, used with FastAPI `Depends`
 - Code, identifiers, comments, logs and commit messages are in English;
   domain field names mirror the Portuguese catalog vocabulary and are not
   translated
@@ -88,7 +93,7 @@ Conventions:
   interfaces, never on concrete pipeline classes.
 - Dependency injection: collaborators shall be passed through constructors;
   a class shall never instantiate its own dependencies. Wiring happens only
-  in `get_<name>()` factories.
+  in `app/dependencies.py`.
 - Single embedding model: documents and queries shall be embedded with the
   same configured model. Changing the model requires regenerating the
   precomputed embeddings and reindexing in the same change.
